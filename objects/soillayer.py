@@ -2,7 +2,7 @@ from pydantic import BaseModel
 import pandas as pd
 import math
 
-from settings import BOTTOM_OFFSET
+from settings import BOTTOM_OFFSET, SOILCOLORS
 
 
 class SoilLayer(BaseModel):
@@ -15,6 +15,19 @@ class SoilLayer(BaseModel):
     @property
     def height(self):
         return self.top - self.bottom
+
+    @property
+    def color(self):
+        if self.soil_name.find("_"):
+            sn = self.soil_name.split("_")[0]
+        else:
+            sn = self.soil_name
+
+        if not sn in SOILCOLORS.keys():
+            print(f"No color set for soilname '{self.soil_name}', defaulting to grey.")
+            return "#b5aeae"
+        else:
+            return SOILCOLORS[sn]
 
     @classmethod
     def from_dataframe_row(cls, row: pd.Series) -> "SoilLayer":

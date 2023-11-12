@@ -45,3 +45,25 @@ PROFIEL_IDS = (  # NOTE this is nasty way to use () but this happens due to an e
         "MV_bui",
     ],
 )
+
+SOILCOLORS = {
+    "AA": "#b5aeae",
+    "AV": "#b5aeae",
+    "BV": "#996d22",
+    "CK": "#a2e69c",
+    "CK14": "#a2e69c",
+    "CK16": "#5db854",
+    "CK18": "#17800e",
+    "CZ": "#1df00a",
+    "DK": "#73c99a",
+    "DK14": "#73c99a",
+    "DK16": "#38ab6c",
+    "DK18": "#098742",
+    "DZ": "#07e86c",
+    "HV": "#c29904",
+    "Kla": "#1b6936",
+    "PL": "#eaff00",
+    "PLa": "#eaff00",
+    "ZA": "#d8e35f",
+    "ZAa": "#d8e35f",
+}

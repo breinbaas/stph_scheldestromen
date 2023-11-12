@@ -6,7 +6,8 @@ import matplotlib.patches as patches
 
 from objects.crosssection import Crosssection, CrosssectionPoint
 from objects.soilprofile import SoilProfile
-from settings import PROFIEL_IDS, DICT_POINT_IDS
+from settings import PROFIEL_IDS, DICT_POINT_IDS, LIMIT_LEFT, LIMIT_RIGHT
+from geolib.models.dgeoflow import DGeoFlowModel
 
 
 class Scenario(BaseModel):
@@ -36,9 +37,14 @@ class Scenario(BaseModel):
                 CrosssectionPoint(x=xpoints[i], z=ypoints[i], point_type=pointtypes[i])
             )
 
+        crosssection = Crosssection.from_points(points=dppoints)
+        crosssection.mirror()
+        crosssection.limit_left(LIMIT_LEFT)
+        crosssection.limit_right(LIMIT_RIGHT)
+
         result = Scenario(
             name=name,
-            crosssection=Crosssection.from_points(points=dppoints),
+            crosssection=crosssection,
             uittredepunt=float(row["uittredepunt"]),
             soilprofile=soilprofile,
             slootnummer=str(row["slootnummer"]),
@@ -51,6 +57,12 @@ class Scenario(BaseModel):
 
         return result
 
+    def to_dgeoflow_model(self) -> DGeoFlowModel:
+        m = DGeoFlowModel()
+        for layer in self.soilprofile:
+            pass
+        return m
+
     def plot(self, filename: str, width: float = 10.0, height: float = 6.0):
         fig = Figure(figsize=(width, height))
         ax = fig.add_subplot()
@@ -61,7 +73,7 @@ class Scenario(BaseModel):
                     (self.crosssection.left, sl.bottom),
                     self.crosssection.width,
                     sl.height,
-                    fill=None,
+                    color=sl.color,
                     # hatch="///",
                 )
             )
@@ -70,6 +82,7 @@ class Scenario(BaseModel):
         ax.plot(
             [p.x for p in self.crosssection.points],
             [p.z for p in self.crosssection.points],
+            "k",
         )
 
         ax.set_ylim(self.soilprofile.bottom, self.crosssection.top)
