@@ -20,3 +20,10 @@ class SoilProfile(BaseModel):
             raise ValueError("Trying to get bottom of a soilprofile with no soillayers")
 
         return self.soillayers[-1].bottom
+
+    @property
+    def aquifer(self):
+        for l in self.soillayers:
+            if l.is_aquifer == l.aquifer_number:
+                return l
+        return None

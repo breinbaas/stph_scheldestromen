@@ -68,16 +68,29 @@ class Scenario(BaseModel):
         ax = fig.add_subplot()
 
         for sl in self.soilprofile.soillayers:
-            ax.add_patch(
-                patches.Rectangle(
-                    (self.crosssection.left, sl.bottom),
-                    self.crosssection.width,
-                    sl.height,
-                    color=sl.color,
-                    # hatch="///",
+            if sl == self.soilprofile.aquifer:
+                ax.add_patch(
+                    patches.Rectangle(
+                        (self.crosssection.left, sl.bottom),
+                        self.crosssection.width,
+                        sl.height,
+                        facecolor=sl.color,
+                        # hatch="///",
+                        edgecolor="black",
+                        hatch="//",
+                    )
                 )
-            )
-            ax.text(self.crosssection.left, sl.bottom + 0.1, sl.soil_name)
+                ax.text(self.crosssection.left, sl.bottom + 0.1, f"AQ: {sl.soil_name}")
+            else:
+                ax.add_patch(
+                    patches.Rectangle(
+                        (self.crosssection.left, sl.bottom),
+                        self.crosssection.width,
+                        sl.height,
+                        color=sl.color,
+                    )
+                )
+                ax.text(self.crosssection.left, sl.bottom + 0.1, sl.soil_name)
 
         ax.plot(
             [p.x for p in self.crosssection.points],
