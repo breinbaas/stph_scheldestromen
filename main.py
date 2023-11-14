@@ -81,4 +81,5 @@ inputdata = InputData.from_pickle(PATH_INPUT_FILES, TOETSING_PICKLE, WBI_LOG_PIC
 for scenario in inputdata.scenarios:
     scenario.plot(f"{PATH_OUTPUT_FILES}/{scenario.name}.png")
     dm = scenario.to_dgeoflow_model()
-    dm.serialize(f"{PATH_OUTPUT_FILES}" / "test.flox")
+    dm.serialize(Path(PATH_OUTPUT_FILES) / f"{scenario.name}.flox")
+    break
