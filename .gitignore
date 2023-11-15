@@ -3,6 +3,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+tutorial.flox
+
 # C extensions
 *.so
 

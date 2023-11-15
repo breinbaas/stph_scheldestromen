@@ -1,12 +1,12 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 from enum import IntEnum
 
 
 class CrosssectionPointType(IntEnum):
     NONE = -1
     MV_BINNEN = 0
-    SLOOT_1A = 1  # linksboven
+    SLOOT_1A = 1  # linksboven # INSTEEK (bovenkant sloot)
     SLOOT_1C = 2  # linksonder
     SLOOT_1D = 3  # rechtsonder
     SLOOT_1B = 4  # rechtsboven
@@ -113,3 +113,20 @@ class Crosssection(BaseModel):
         ].point_type = (
             CrosssectionPointType.MV_BINNEN
         )  # just to be sure if a point is exaclty on x_right
+
+    def get_point_by_point_type(
+        self, point_type: CrosssectionPointType
+    ) -> Optional[CrosssectionPoint]:
+        """Get the coint on the crosssections that represents the given point type
+
+        Args:
+            point_type (CrosssectionPointType): The point type to look for
+
+        Returns:
+            CrosssectionPoint: The point or None if not found
+        """
+        for p in self.points:
+            if p.point_type == point_type:
+                return p
+
+        return None
