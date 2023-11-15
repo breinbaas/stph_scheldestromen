@@ -46,24 +46,103 @@ PROFIEL_IDS = (  # NOTE this is nasty way to use () but this happens due to an e
     ],
 )
 
-SOILCOLORS = {
-    "AA": "#b5aeae",
-    "AV": "#b5aeae",
-    "BV": "#996d22",
-    "CK": "#a2e69c",
-    "CK14": "#a2e69c",
-    "CK16": "#5db854",
-    "CK18": "#17800e",
-    "CZ": "#1df00a",
-    "DK": "#73c99a",
-    "DK14": "#73c99a",
-    "DK16": "#38ab6c",
-    "DK18": "#098742",
-    "DZ": "#07e86c",
-    "HV": "#c29904",
-    "Kla": "#1b6936",
-    "PL": "#eaff00",
-    "PLa": "#eaff00",
-    "ZA": "#d8e35f",
-    "ZAa": "#d8e35f",
+
+SOILPARAMETERS = {
+    "AA": {
+        "k_hor": 5,
+        "k_ver": 5,
+        "color": "#b5aeae",
+    },
+    "AV": {
+        "k_hor": 1e-3,
+        "k_ver": 1e-3,
+        "color": "#b5aeae",
+    },
+    "BV": {
+        "k_hor": 1e-3,
+        "k_ver": 1e-3,
+        "color": "#996d22",
+    },
+    "CK": {
+        "k_hor": 1e-3,
+        "k_ver": 1e-3,
+        "color": "#a2e69c",
+    },
+    "CK14": {
+        "k_hor": 1e-3,
+        "k_ver": 1e-3,
+        "color": "#a2e69c",
+    },
+    "CK16": {
+        "k_hor": 1e-3,
+        "k_ver": 1e-3,
+        "color": "#38ab6c",
+    },
+    "CK18": {
+        "k_hor": 1e-3,
+        "k_ver": 1e-3,
+        "color": "#1df00a",
+    },
+    "CZ": {
+        "k_hor": 1e-2,
+        "k_ver": 1e-2,
+        "color": "#b5aeae",
+    },
+    "DK": {
+        "k_hor": 1e-3,
+        "k_ver": 1e-3,
+        "color": "#73c99a",
+    },
+    "DK14": {
+        "k_hor": 1e-3,
+        "k_ver": 1e-3,
+        "color": "#73c99a",
+    },
+    "DK16": {
+        "k_hor": 1e-3,
+        "k_ver": 1e-3,
+        "color": "#098742",
+    },
+    "DK18": {
+        "k_hor": 1e-3,
+        "k_ver": 1e-3,
+        "color": "#b5aeae",
+    },
+    "DZ": {
+        "k_hor": 1e-2,
+        "k_ver": 1e-2,
+        "color": "#07e86c",
+    },
+    "HV": {
+        "k_hor": 1e-3,
+        "k_ver": 1e-3,
+        "color": "#c29904",
+    },
+    "Kla": {
+        "k_hor": 1e-2,
+        "k_ver": 1e-2,
+        "color": "#1b6936",
+    },
+    "PL": {
+        "k_hor": 2,
+        "k_ver": 2,
+        "color": "#eaff00",
+    },
+    "PLa": {
+        "k_hor": 2,
+        "k_ver": 2,
+        "color": "#eaff00",
+    },
+    "ZA": {
+        "k_hor": 2,
+        "k_ver": 2,
+        "color": "#d8e35f",
+    },
+    "ZAa": {
+        "k_hor": 2,
+        "k_ver": 2,
+        "color": "#d8e35f",
+    },
 }
+
+# TODO zand (PL en ZA) heeft een bandbreedte van 0.084,2,4 m/d

@@ -4,13 +4,20 @@ import matplotlib.pyplot as plt
 from matplotlib.pyplot import Figure
 import matplotlib.patches as patches
 from shapely.geometry import Polygon, MultiPolygon
-
-from objects.crosssection import Crosssection, CrosssectionPoint
-from objects.soilprofile import SoilProfile
-from settings import PROFIEL_IDS, DICT_POINT_IDS, LIMIT_LEFT, LIMIT_RIGHT
 from geolib.models.dgeoflow import DGeoFlowModel
 from geolib.soils.soil import Soil, StorageParameters
 from geolib.geometry.one import Point
+from geolib.soils.soil_utils import Color
+
+from objects.crosssection import Crosssection, CrosssectionPoint
+from objects.soilprofile import SoilProfile
+from settings import (
+    PROFIEL_IDS,
+    DICT_POINT_IDS,
+    LIMIT_LEFT,
+    LIMIT_RIGHT,
+    SOILPARAMETERS,
+)
 
 
 class Scenario(BaseModel):
@@ -66,15 +73,18 @@ class Scenario(BaseModel):
         m = DGeoFlowModel()
 
         # soiltypes
-        m.add_soil(
-            Soil(
-                name="TestGrondsoort",
-                code="CodeGrondsoort",
-                storage_parameters=StorageParameters(
-                    vertical_permeability=0.1, horizontal_permeability=0.1
-                ),
+        for code, params in SOILPARAMETERS.items():
+            m.add_soil(
+                Soil(
+                    name=code,
+                    code=code,
+                    storage_parameters=StorageParameters(
+                        vertical_permeability=params["k_ver"],
+                        horizontal_permeability=params["k_hor"],
+                    ),
+                    color=Color(params["color"].replace("#", "")),
+                )
             )
-        )
 
         # create a polygon from the crosssection
         crs_pts = [(p.x, p.z) for p in self.crosssection.points]
@@ -93,9 +103,6 @@ class Scenario(BaseModel):
             # create a shapely polygon out of this
             pg_layer = Polygon([(x1, z1), (x2, z1), (x2, z2), (x1, z2)])
 
-            # subtract the layer from the crosssections_polygon
-            ##diff = pg_crosssection.difference(pg_layer)
-            #
             intersections = pg_layer.intersection(pg_crosssection)
 
             polygons = []
@@ -112,7 +119,9 @@ class Scenario(BaseModel):
             for pg in polygons:
                 if not pg.is_empty:
                     points = [Point(x=p[0], z=p[1]) for p in pg.boundary.coords][:-1]
-                    m.add_layer(points=points, soil_code="CodeGrondsoort", label="Test")
+                    m.add_layer(
+                        points=points, soil_code=layer.short_name, label=layer.soil_name
+                    )
 
         return m
 

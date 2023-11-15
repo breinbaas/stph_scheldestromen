@@ -2,7 +2,7 @@ from pydantic import BaseModel
 import pandas as pd
 import math
 
-from settings import BOTTOM_OFFSET, SOILCOLORS
+from settings import BOTTOM_OFFSET, SOILPARAMETERS
 
 
 class SoilLayer(BaseModel):
@@ -17,17 +17,32 @@ class SoilLayer(BaseModel):
         return self.top - self.bottom
 
     @property
-    def color(self):
+    def short_name(self) -> str:
+        """This will remove everything after the first _"""
         if self.soil_name.find("_"):
-            sn = self.soil_name.split("_")[0]
+            return self.soil_name.split("_")[0]
         else:
-            sn = self.soil_name
+            return self.soil_name
 
-        if not sn in SOILCOLORS.keys():
+    @property
+    def color(self):
+        if not self.short_name in SOILPARAMETERS.keys():
             print(f"No color set for soilname '{self.soil_name}', defaulting to grey.")
             return "#b5aeae"
         else:
-            return SOILCOLORS[sn]
+            return SOILPARAMETERS[self.short_name]["color"]
+
+    @property
+    def params(self):
+        if not self.short_name in SOILPARAMETERS.keys():
+            raise ValueError(
+                f"No parameters set for soilname '{self.soil_name}', raising exception."
+            )
+        else:
+            return {
+                "k_hor": SOILPARAMETERS[self.short_name]["k_hor"],
+                "k_ver": SOILPARAMETERS[self.short_name]["k_ver"],
+            }
 
     @classmethod
     def from_dataframe_row(cls, row: pd.Series) -> "SoilLayer":
