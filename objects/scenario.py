@@ -9,6 +9,7 @@ from geolib.models.dgeoflow import DGeoFlowModel
 from geolib.soils.soil import Soil, StorageParameters
 from geolib.geometry.one import Point
 from geolib.soils.soil_utils import Color
+from copy import deepcopy
 
 from objects.crosssection import Crosssection, CrosssectionPoint, CrosssectionPointType
 from objects.soilprofile import SoilProfile
@@ -20,6 +21,7 @@ from settings import (
     SOILPARAMETERS,
     DITCH_BOUNDARY_OFFSET,
 )
+from helpers import get_name_from_point_type, get_soil_parameters
 
 
 class Scenario(BaseModel):
@@ -71,10 +73,20 @@ class Scenario(BaseModel):
 
         return result
 
-    def to_flat_dgeoflow_model(self) -> DGeoFlowModel:
+    def to_flat_dgeoflow_model(self, plot_file: str = "") -> DGeoFlowModel:
+        """Convert the scenario to a DGeoFlow model where we limit the top of the geometry at the uittredepunt
+
+        If plot_file is not "" this will also create a plot on the given location / name for debugging purposes
+
+        Returns:
+            DGeoFlowModel: The DGeoFlow model
+        """
         m = DGeoFlowModel()
 
-        # soiltypes
+        if plot_file != "":
+            fig, ax = self.plot()
+
+        # write soiltypes
         for code, params in SOILPARAMETERS.items():
             m.add_soil(
                 Soil(
@@ -158,14 +170,26 @@ class Scenario(BaseModel):
 
         # add the river level boundary
         points_river_level = []
-        for layer in self.soilprofile.soillayers:
-            points_river_level.append(Point(x=self.crosssection.left, z=layer.top))
+        for z in self.soilprofile.get_left_boundary_z_coordinates():
+            points_river_level.append(Point(x=self.crosssection.left, z=z))
 
         m.add_boundary_condition(
-            points=points_river_level[::-1],
+            points=points_river_level,
             head_level=self.waterstand_bij_norm,
             label="river level at norm",
         )
+
+        if plot_file != "":
+            zs = self.soilprofile.get_left_boundary_z_coordinates()
+            xs = [self.crosssection.left] * len(zs)
+            ax.plot(xs, zs, "b", linewidth=5)
+            ax.text(
+                xs[0] - 2.0,
+                zs[0] + 0.5,
+                f"head = {self.waterstand_bij_norm}",
+                rotation=90,
+                color="b",
+            )
 
         # add the polder level boundary
         m.add_boundary_condition(
@@ -174,6 +198,21 @@ class Scenario(BaseModel):
             label="polder level",
         )
 
+        if plot_file != "":
+            ax.plot(
+                [boundary_pp_start.x, boundary_pp_end.x],
+                [boundary_pp_start.z, boundary_pp_end.z],
+                "b",
+                linewidth=5,
+            )
+            ax.text(
+                boundary_pp_start.x,
+                boundary_pp_start.z + 0.5,
+                f"head = {self.max_zp_wp}",
+                rotation=90,
+                color="b",
+            )
+
         # add the phreatic level boundary
         m.add_boundary_condition(
             points=[boundary_pl_start, Point(x=x2, z=boundary_pl_start.z)],
@@ -181,9 +220,27 @@ class Scenario(BaseModel):
             label="phreatic level",
         )
 
+        if plot_file != "":
+            ax.plot(
+                [boundary_pl_start.x, x2],
+                [boundary_pl_start.z, boundary_pl_start.z],
+                "b",
+                linewidth=5,
+            )
+            ax.text(
+                boundary_pl_start.x,
+                boundary_pl_start.z + 0.5,
+                f"head = {sloot_1a.z}",
+                color="b",
+            )
+
+        if plot_file != "":
+            fig.savefig(plot_file)
+
         return m
 
     def to_dgeoflow_model(self) -> DGeoFlowModel:
+        raise NotImplementedError
         m = DGeoFlowModel()
 
         # soiltypes
@@ -241,12 +298,25 @@ class Scenario(BaseModel):
 
         return m
 
-    def plot(self, filename: str, width: float = 10.0, height: float = 6.0):
+    def plot(self, filename: str = "", width: float = 20.0, height: float = 12.0):
+        """Genertae a plot of the model
+
+        If filename is "" then the figure will be returned else the plot will
+        be save to the given filename
+
+        Args:
+            filename (str, optional): The name of the file. Defaults to "". If not set this function will return the figure
+            width (float, optional): width of the plot. Defaults to 20.0.
+            height (float, optional): height of the plot. Defaults to 12.0.
+        """
         fig = Figure(figsize=(width, height))
         ax = fig.add_subplot()
 
         # grondlagen
         for sl in self.soilprofile.soillayers:
+            # we want to show the k values
+            soilparams = get_soil_parameters(sl.short_name)
+
             # aquifer krijgt hatching
             if sl == self.soilprofile.aquifer:
                 ax.add_patch(
@@ -260,7 +330,11 @@ class Scenario(BaseModel):
                         hatch="//",
                     )
                 )
-                ax.text(self.crosssection.left, sl.bottom + 0.1, f"AQ: {sl.soil_name}")
+                ax.text(
+                    self.crosssection.left,
+                    sl.bottom + 0.1,
+                    f"AQ: {sl.soil_name} (k;hor={soilparams['k_hor']}, k;ver={soilparams['k_ver']})",
+                )
             else:
                 ax.add_patch(
                     patches.Rectangle(
@@ -270,7 +344,11 @@ class Scenario(BaseModel):
                         color=sl.color,
                     )
                 )
-                ax.text(self.crosssection.left, sl.bottom + 0.1, sl.soil_name)
+                ax.text(
+                    self.crosssection.left,
+                    sl.bottom + 0.1,
+                    f"{sl.soil_name} (k;hor={soilparams['k_hor']}, k;ver={soilparams['k_ver']})",
+                )
 
         # dwarsprofiel
         ax.plot(
@@ -279,5 +357,26 @@ class Scenario(BaseModel):
             "k",
         )
 
-        ax.set_ylim(self.soilprofile.bottom, self.crosssection.top)
+        # karakteristieke punten
+        for point in self.crosssection.points:
+            ax.plot([point.x, point.x], [point.z, self.crosssection.top + 2.0], "k--")
+            ax.text(
+                point.x,
+                self.crosssection.top + 3.0,
+                get_name_from_point_type(point.point_type),
+                rotation=90,
+            )
+
+        # # boundary
+        # sp_limited = deepcopy(self.soilprofile)
+        # sp_limited.cut_top_at_z(self.)
+        # zs = self.soilprofile.get_left_boundary_z_coordinates()
+        # xs = [self.crosssection.left] * len(zs)
+        # ax.plot(xs, zs, "k--")
+
+        ax.set_ylim(self.soilprofile.bottom, self.crosssection.top + 10.0)
+
+        if filename == "":  # return the figure so more stuff can be added
+            return fig, ax
+
         fig.savefig(filename)

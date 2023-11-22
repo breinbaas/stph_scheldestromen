@@ -79,9 +79,10 @@ class InputData(BaseModel):
 
 inputdata = InputData.from_pickle(PATH_INPUT_FILES, TOETSING_PICKLE, WBI_LOG_PICKLE)
 for scenario in inputdata.scenarios[:10]:
-    scenario.plot(f"{PATH_OUTPUT_FILES}/{scenario.name}.png")
     try:
-        dm = scenario.to_flat_dgeoflow_model()
+        dm = scenario.to_flat_dgeoflow_model(
+            plot_file=f"{PATH_OUTPUT_FILES}/{scenario.name}.png"
+        )
         dm.serialize(Path(PATH_OUTPUT_FILES) / f"{scenario.name}.flat.flox")
     except Exception as e:
         print(f"Cannot handle scenario '{scenario.name}', got error '{e}'")
