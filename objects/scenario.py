@@ -36,6 +36,7 @@ class Scenario(BaseModel):
     ondergrens_slootpeil: float
     slootpeil: float
     waterstand_bij_norm: float
+    logfile: str = ""  # if set then this will be used to store the log information
 
     @classmethod
     def from_dataframe_row(
@@ -83,10 +84,33 @@ class Scenario(BaseModel):
         """
         m = DGeoFlowModel()
 
+        log = []
+        log.append(f"Handling scenario '{self.name}'")
+        log.append("-" * 80)
+        log.append("Input parameters:")
+        log.append("-" * 80)
+        log.append(f"Waterstand bij norm: {self.waterstand_bij_norm}")
+        log.append(f"Polderpeil: {self.max_zp_wp}")
+        log.append("-" * 80)
+        log.append("Grondlagen:")
+        log.append("-" * 80)
+        for sl in self.soilprofile.soillayers:
+            if sl.aquifer_number == sl.is_aquifer:
+                log.append(
+                    f"van {sl.top:.2f} tot {sl.bottom:.2f} grondsoort '{sl.soil_name}' AQUIFER"
+                )
+            else:
+                log.append(
+                    f"van {sl.top:.2f} tot {sl.bottom:.2f} grondsoort '{sl.soil_name}'"
+                )
+        log.append("-" * 80)
+
         if plot_file != "":
             fig, ax = self.plot()
 
         # write soiltypes
+        log.append("Grondsoorten:")
+        log.append("-" * 80)
         for code, params in SOILPARAMETERS.items():
             m.add_soil(
                 Soil(
@@ -99,6 +123,11 @@ class Scenario(BaseModel):
                     color=Color(params["color"].replace("#", "")),
                 )
             )
+
+            log.append(
+                f"Adding soil '{code}', k_ver={params['k_ver']}, k_hor={params['k_hor']}"
+            )
+        log.append("-" * 80)
 
         # we need sloot 1d and 1c to define our polder level boundary
         sloot_1d = self.crosssection.get_point_by_point_type(
@@ -135,6 +164,7 @@ class Scenario(BaseModel):
             )
 
         # we cut our gemeotry off at the z value of insteek (sloot_1d) or point binnen (mv_binnen)
+        log.append(f"Afkappen profiel op onderzijde sloot ({sloot_1d.z})")
         self.soilprofile.cut_top_at_z(sloot_1d.z)
 
         x1 = self.crosssection.left
@@ -236,6 +266,12 @@ class Scenario(BaseModel):
 
         if plot_file != "":
             fig.savefig(plot_file)
+
+        if self.logfile != "":
+            f_log = open(self.logfile, "w")
+            for line in log:
+                f_log.write(line + "\n")
+            f_log.close()
 
         return m
 

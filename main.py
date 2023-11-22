@@ -80,6 +80,9 @@ class InputData(BaseModel):
 inputdata = InputData.from_pickle(PATH_INPUT_FILES, TOETSING_PICKLE, WBI_LOG_PICKLE)
 for scenario in inputdata.scenarios[:10]:
     try:
+        scenario.logfile = (
+            f"{PATH_OUTPUT_FILES}/{scenario.name}.log.txt"  # For debugging
+        )
         dm = scenario.to_flat_dgeoflow_model(
             plot_file=f"{PATH_OUTPUT_FILES}/{scenario.name}.png"
         )
