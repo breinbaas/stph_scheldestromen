@@ -123,52 +123,43 @@ class Scenario(BaseModel):
             )
 
         # we cut our gemeotry off at the z value of insteek (sloot_1d) or point binnen (mv_binnen)
-        p_z_cutoff = sloot_1d.z
+        self.soilprofile.cut_top_at_z(sloot_1d.z)
 
         x1 = self.crosssection.left
         x2 = self.crosssection.right
         boundary_added = False
         for layer in self.soilprofile.soillayers:
-            if layer.bottom < p_z_cutoff:
-                ztop = layer.top
-                if layer.top > p_z_cutoff:
-                    ztop = p_z_cutoff
-                points = [
-                    Point(x=p[0], z=p[1])
-                    for p in zip(
-                        [x1, x2, x2, x1],
-                        [ztop, ztop, layer.bottom, layer.bottom],
-                    )
-                ]
-                if not boundary_added:
-                    # first layer so add the points to enable the selection of the boundaries
-                    # one at sloot_1d, one at sloot_1c for polder level
-                    # and one at sloot_1c + DITCH_BOUNDARY_OFFSET for the phreatic level
-                    boundary_pp_start = Point(x=sloot_1d.x, z=ztop)
-                    boundary_pp_end = Point(x=sloot_1c.x, z=ztop)
-                    boundary_pl_start = Point(
-                        x=sloot_1a.x + DITCH_BOUNDARY_OFFSET, z=ztop
-                    )
-                    # insert those points
-                    points = (
-                        [points[0]]
-                        + [boundary_pp_start, boundary_pp_end, boundary_pl_start]
-                        + points[1:]
-                    )
-                    boundary_added = True
-                m.add_layer(
-                    points=points, soil_code=layer.short_name, label=layer.soil_name
+            points = [
+                Point(x=p[0], z=p[1])
+                for p in zip(
+                    [x1, x2, x2, x1],
+                    [layer.top, layer.top, layer.bottom, layer.bottom],
                 )
+            ]
+            if not boundary_added:
+                # first layer so add the points to enable the selection of the boundaries
+                # one at sloot_1d, one at sloot_1c for polder level
+                # and one at sloot_1c + DITCH_BOUNDARY_OFFSET for the phreatic level
+                boundary_pp_start = Point(x=sloot_1d.x, z=layer.top)
+                boundary_pp_end = Point(x=sloot_1c.x, z=layer.top)
+                boundary_pl_start = Point(
+                    x=sloot_1a.x + DITCH_BOUNDARY_OFFSET, z=layer.top
+                )
+                # insert those points
+                points = (
+                    [points[0]]
+                    + [boundary_pp_start, boundary_pp_end, boundary_pl_start]
+                    + points[1:]
+                )
+                boundary_added = True
+            m.add_layer(
+                points=points, soil_code=layer.short_name, label=layer.soil_name
+            )
 
-        # TODO -> cutoff moet in soilprofile kunnen, maakt het veel eenvoudiger
         # add the river level boundary
         points_river_level = []
         for layer in self.soilprofile.soillayers:
-            if layer.bottom < p_z_cutoff:
-                ztop = layer.top
-                if layer.top > p_z_cutoff:
-                    ztop = p_z_cutoff
-                points_river_level.append(Point(x=self.crosssection.left, z=ztop))
+            points_river_level.append(Point(x=self.crosssection.left, z=layer.top))
 
         m.add_boundary_condition(
             points=points_river_level[::-1],

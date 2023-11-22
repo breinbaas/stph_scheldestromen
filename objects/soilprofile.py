@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Tuple
 
 from objects.soillayer import SoilLayer
 
@@ -27,3 +27,38 @@ class SoilProfile(BaseModel):
             if l.is_aquifer == l.aquifer_number:
                 return l
         return None
+
+    def get_left_boundary_z_coordinates(self) -> List[float]:
+        """Get the z coordinates soillayers from bottom to top
+
+        Returns:
+            List[float]: z coordinates of the soillyers from bottom to top
+        """
+        result = [l.bottom for l in self.soillayers[::-1]]
+        if len(self.soillayers) > 0:
+            result.append(self.soillayers[0].top)
+        return result
+
+    def cut_top_at_z(self, z: float):
+        """Remove all soillayers above z and limit the top of the soilprofile to z
+
+        Args:
+            z (float): The new top of the soilprofile
+        """
+        result = []
+        for sl in self.soillayers:
+            if sl.top <= z:
+                result.append(sl)
+            elif sl.bottom >= z:
+                continue
+            else:
+                result.append(
+                    SoilLayer(
+                        soil_name=sl.soil_name,
+                        top=z,
+                        bottom=sl.bottom,
+                        is_aquifer=sl.is_aquifer,
+                        aquifer_number=sl.aquifer_number,
+                    )
+                )
+        self.soillayers = result
