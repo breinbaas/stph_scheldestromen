@@ -5,6 +5,8 @@ __pycache__/
 
 tutorial.flox
 
+geolib.env
+
 # C extensions
 *.so
 
