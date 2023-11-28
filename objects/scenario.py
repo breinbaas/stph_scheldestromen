@@ -403,13 +403,6 @@ class Scenario(BaseModel):
                 rotation=90,
             )
 
-        # # boundary
-        # sp_limited = deepcopy(self.soilprofile)
-        # sp_limited.cut_top_at_z(self.)
-        # zs = self.soilprofile.get_left_boundary_z_coordinates()
-        # xs = [self.crosssection.left] * len(zs)
-        # ax.plot(xs, zs, "k--")
-
         ax.set_ylim(self.soilprofile.bottom, self.crosssection.top + 10.0)
 
         if filename == "":  # return the figure so more stuff can be added
