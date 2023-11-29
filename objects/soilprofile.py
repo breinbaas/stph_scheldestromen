@@ -27,6 +27,13 @@ class SoilProfile(BaseModel):
             if l.is_aquifer == l.aquifer_number:
                 return l
         return None
+    
+    def get_first_acquifer_below(self, z: float):
+        for soillayer in self.soillayers:
+            if soillayer.top < z and soillayer.soil_name.find("_Aq") > -1:
+                return soillayer
+        return None
+
 
     def get_left_boundary_z_coordinates(self) -> List[float]:
         """Get the z coordinates soillayers from bottom to top

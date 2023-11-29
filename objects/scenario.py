@@ -9,6 +9,12 @@ from geolib.models.dgeoflow import DGeoFlowModel
 from geolib.soils.soil import Soil, StorageParameters
 from geolib.geometry.one import Point
 from geolib.soils.soil_utils import Color
+from geolib.models.dgeoflow.internal import (
+    PipeTrajectory,
+    ErosionDirectionEnum,
+    PersistablePoint,
+)
+from geolib.models.dgeoflow.internal import CalculationTypeEnum
 from copy import deepcopy
 
 from objects.crosssection import Crosssection, CrosssectionPoint, CrosssectionPointType
@@ -20,6 +26,7 @@ from settings import (
     LIMIT_RIGHT,
     SOILPARAMETERS,
     DITCH_BOUNDARY_OFFSET,
+    DEFAULT_D70,
 )
 from helpers import get_name_from_point_type, get_soil_parameters
 
@@ -170,6 +177,11 @@ class Scenario(BaseModel):
         x1 = self.crosssection.left
         x2 = self.crosssection.right
         boundary_added = False
+        soillayer_for_pipe_settings = self.soilprofile.get_first_acquifer_below(
+            sloot_1d.z
+        )
+        point_pipe_start = None
+        point_pipe_end = Point(x=self.crosssection.left, z=-9999)
         for layer in self.soilprofile.soillayers:
             points = [
                 Point(x=p[0], z=p[1])
@@ -178,6 +190,13 @@ class Scenario(BaseModel):
                     [layer.top, layer.top, layer.bottom, layer.bottom],
                 )
             ]
+
+            if layer == soillayer_for_pipe_settings:
+                # we need to add the points for the pipe settings
+                point_pipe_start = Point(x=sloot_1d.x, z=layer.top)
+                point_pipe_end.z = layer.top
+                points.insert(1, point_pipe_start)
+
             if not boundary_added:
                 # first layer so add the points to enable the selection of the boundaries
                 # one at sloot_1d, one at sloot_1c for polder level
@@ -263,6 +282,43 @@ class Scenario(BaseModel):
                 f"head = {sloot_1a.z}",
                 color="b",
             )
+
+        # pipe trajectory
+        if point_pipe_start is None:
+            raise ValueError(
+                f"No pipe start found, this should be the first layer under the z coordinate of point sloot_1d."
+            )
+
+        log.append(
+            f"Startpunt van de pipe ligt op ({point_pipe_start.x:.2f}, {point_pipe_start.z:.2f})"
+        )
+        log.append(
+            f"Eindpunt van de pipe ligt op ({point_pipe_end.x:.2f}, {point_pipe_end.z:.2f})"
+        )
+        log.append(f"D70 = {DEFAULT_D70}um (={DEFAULT_D70/1000}mm)")
+
+        # set calculation settings
+        m.set_calculation_type(calculation_type=CalculationTypeEnum.PIPE_LENGTH)
+        m.set_pipe_trajectory(
+            pipe_trajectory=PipeTrajectory(
+                Label="Pipe",
+                D70=DEFAULT_D70 / 1000,  # um to mm
+                ErosionDirection=ErosionDirectionEnum.RIGHT_TO_LEFT,
+                ElementSize=1.0,
+                Points=[
+                    PersistablePoint(X=point_pipe_start.x, Z=point_pipe_start.z),
+                    PersistablePoint(X=point_pipe_end.x, Z=point_pipe_end.z),
+                ],
+            )
+        )
+        if plot_file != "":
+            ax.plot(
+                [point_pipe_start.x, point_pipe_end.x],
+                [point_pipe_start.z, point_pipe_end.z],
+                "k--",
+                linewidth=5,
+            )
+            ax.text(point_pipe_end.x, point_pipe_end.z, "pipe")
 
         if plot_file != "":
             fig.savefig(plot_file)

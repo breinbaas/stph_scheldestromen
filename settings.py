@@ -4,6 +4,7 @@ BOTTOM_OFFSET = 10.0  # if we have no bottom on the soilprofile we use the top o
 LIMIT_LEFT = -50.0  # limit the crosssection to the given value on the left side
 LIMIT_RIGHT = 100.0  # limit the crosssection to the given value on the right side
 DITCH_BOUNDARY_OFFSET = 1.0  # distance from sloot_1c point to the start of the boundary for the phreatic level
+DEFAULT_D70 = 100 # in um (micrometers = mm * 1000)
 
 DICT_POINT_IDS = {
     "MV_bin": CrosssectionPointType.MV_BINNEN,
