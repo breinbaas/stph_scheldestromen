@@ -213,9 +213,28 @@ class Scenario(BaseModel):
                     + points[1:]
                 )
                 boundary_added = True
-            m.add_layer(
+            id = m.add_layer(
                 points=points, soil_code=layer.short_name, label=layer.soil_name
             )
+
+            # if layer == soillayer_for_pipe_settings: # check of het goed gaat met deze laag anders ook die erboven
+            #     pipe_layer_id
+
+            # ACTIES
+            # 1. Boundary rechts (limiet rechts korter) -> boven en rechts (!)
+            # 2. Boundary slootbodem op onderzijde afdekkende laag
+            # 3a. 0.3D
+            # 3b. mesh size aanpassen
+            # --> opsturen / modelopzet vastzetten (8 dec)
+            # 4. finetuning
+            # 5. rapportage
+
+            # OPMERKINGEN
+            # acties 0.3d op laag
+            # rechts boundary leggen voor polderpeil bij kortere geometrie
+            # grid grootte dusdanig dat er in ieder geval 2 driehoeken in kunnen (half hoogte) en bij lagen > 5m bv 2m gebruiken
+            # optioneel, opdelen in vlakken (horizontaal) met fijner grind rondom pipe / sloot
+            # ACTIE check doorlatendheden mail Hendrik -> settings.py
 
         # add the river level boundary
         points_river_level = []
