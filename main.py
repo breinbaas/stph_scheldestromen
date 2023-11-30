@@ -8,7 +8,7 @@ from typing import List
 
 from objects.soillayer import SoilLayer
 from objects.soilprofile import SoilProfile
-from objects.scenario import Scenario
+from objects.scenario import Scenario, BoundaryMode
 
 load_dotenv()
 
@@ -32,7 +32,13 @@ class InputData(BaseModel):
     scenarios: List[Scenario] = []
 
     @classmethod
-    def from_pickle(cls, pickle_path, pickle_file, dsoil_pickle_file) -> "InputData":
+    def from_pickle(
+        cls,
+        pickle_path,
+        pickle_file,
+        dsoil_pickle_file,
+        boundary_mode: BoundaryMode = BoundaryMode.DEFAULT,
+    ) -> "InputData":
         result = InputData()
 
         # scenario info
@@ -69,7 +75,9 @@ class InputData(BaseModel):
                     raise ValueError(f"Could not find soilprofile with id={id}")
 
                 result.scenarios.append(
-                    Scenario.from_dataframe_row(i, row, soilprofile)
+                    Scenario.from_dataframe_row(
+                        i, row, soilprofile, boundary_mode=boundary_mode
+                    )
                 )
             except Exception as e:
                 raise e
@@ -77,7 +85,12 @@ class InputData(BaseModel):
         return result
 
 
-inputdata = InputData.from_pickle(PATH_INPUT_FILES, TOETSING_PICKLE, WBI_LOG_PICKLE)
+inputdata = InputData.from_pickle(
+    PATH_INPUT_FILES,
+    TOETSING_PICKLE,
+    WBI_LOG_PICKLE,
+    boundary_mode=BoundaryMode.PL_RIGHT,
+)
 for scenario in inputdata.scenarios[:10]:
     try:
         scenario.logfile = (

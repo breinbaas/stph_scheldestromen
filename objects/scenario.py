@@ -16,6 +16,7 @@ from geolib.models.dgeoflow.internal import (
 )
 from geolib.models.dgeoflow.internal import CalculationTypeEnum
 from copy import deepcopy
+from enum import IntEnum
 
 from objects.crosssection import Crosssection, CrosssectionPoint, CrosssectionPointType
 from objects.soilprofile import SoilProfile
@@ -31,6 +32,24 @@ from settings import (
 from helpers import get_name_from_point_type, get_soil_parameters
 
 
+# TODO klopt de sloot1a aanname? oftewel is de phreatic level gelijk aan sloot 1a.z?
+class BoundaryMode(IntEnum):
+    """This enum is used to select the prefered boundary conditions
+
+    DEFAULT
+    1. the riverlevel is placed on the left side of the geometry, head=waterstand_bij_norm
+    2. the polder level is placed at the line at sloot_1c and sloot_1d at the top of the aquifer, head=max_zp_wp
+    3. the phreatic level is placed at sloot1c.x + an offset (DITCH_BOUNDARY_OFFSET in the settings) at the surface, head=sloot_1a.z
+
+
+    PL_RIGHT
+    this is equal to BOUNDARY_DEFAULT but the right side of the geometry is also set as a boundary with head=sloot_1a.z
+    """
+
+    DEFAULT = 0
+    PL_RIGHT = 1
+
+
 class Scenario(BaseModel):
     name: str
     crosssection: Crosssection
@@ -43,11 +62,16 @@ class Scenario(BaseModel):
     ondergrens_slootpeil: float
     slootpeil: float
     waterstand_bij_norm: float
+    boundary_mode: BoundaryMode = BoundaryMode.DEFAULT
     logfile: str = ""  # if set then this will be used to store the log information
 
     @classmethod
     def from_dataframe_row(
-        cls, name, row: pd.Series, soilprofile: SoilProfile
+        cls,
+        name,
+        row: pd.Series,
+        soilprofile: SoilProfile,
+        boundary_mode: BoundaryMode = BoundaryMode.DEFAULT,
     ) -> "Scenario":
         # NOTE because of the black formatting error we need to use PROFIEL_IDS[0]
         pointtypes = [DICT_POINT_IDS[id] for id in PROFIEL_IDS[0]]
@@ -68,6 +92,7 @@ class Scenario(BaseModel):
         result = Scenario(
             name=name,
             crosssection=crosssection,
+            boundary_mode=boundary_mode,
             # intredepunt=float(row["xintredepunt"]),
             # uittredepunt=float(row["uittredepunt"]),
             soilprofile=soilprofile,
@@ -98,6 +123,7 @@ class Scenario(BaseModel):
         log.append("-" * 80)
         log.append(f"Waterstand bij norm: {self.waterstand_bij_norm}")
         log.append(f"Polderpeil: {self.max_zp_wp}")
+        log.append(f"Gekozen boundary mode {self.boundary_mode}")
         log.append("-" * 80)
         log.append("Grondlagen:")
         log.append("-" * 80)
@@ -238,7 +264,7 @@ class Scenario(BaseModel):
 
         # add the river level boundary
         points_river_level = []
-        for z in self.soilprofile.get_left_boundary_z_coordinates():
+        for z in self.soilprofile.get_soillayer_z_coordinates():
             points_river_level.append(Point(x=self.crosssection.left, z=z))
 
         m.add_boundary_condition(
@@ -248,7 +274,7 @@ class Scenario(BaseModel):
         )
 
         if plot_file != "":
-            zs = self.soilprofile.get_left_boundary_z_coordinates()
+            zs = self.soilprofile.get_soillayer_z_coordinates()
             xs = [self.crosssection.left] * len(zs)
             ax.plot(xs, zs, "b", linewidth=5)
             ax.text(
@@ -282,16 +308,21 @@ class Scenario(BaseModel):
             )
 
         # add the phreatic level boundary
+        boundary_pl_points = [boundary_pl_start, Point(x=x2, z=boundary_pl_start.z)]
+        if self.boundary_mode == BoundaryMode.PL_RIGHT:
+            for z in self.soilprofile.get_soillayer_z_coordinates()[::-1]:
+                boundary_pl_points.append(Point(x=self.crosssection.right, z=z))
+
         m.add_boundary_condition(
-            points=[boundary_pl_start, Point(x=x2, z=boundary_pl_start.z)],
+            points=boundary_pl_points,
             head_level=sloot_1a.z,
             label="phreatic level",
         )
 
         if plot_file != "":
             ax.plot(
-                [boundary_pl_start.x, x2],
-                [boundary_pl_start.z, boundary_pl_start.z],
+                [p.x for p in boundary_pl_points],
+                [p.z for p in boundary_pl_points],
                 "b",
                 linewidth=5,
             )
