@@ -134,7 +134,9 @@ class Scenario(BaseModel):
 
         return result
 
-    def to_flat_dgeoflow_model(self, plot_file: str = "") -> DGeoFlowModel:
+    def to_flat_dgeoflow_model(
+        self, sloot_1a_offset: float, plot_file: str = ""
+    ) -> DGeoFlowModel:
         """Convert the scenario to a DGeoFlow model where we limit the top of the geometry at the uittredepunt
 
         If plot_file is not "" this will also create a plot on the given location / name for debugging purposes
@@ -155,6 +157,9 @@ class Scenario(BaseModel):
         log.append(
             f"Gekozen polderpeil mode: {POLDERLEVEL_MODE_NAMES[self.polderlevel_mode]}"
         )
+        log.append(
+            f"Geometrie afkappen op {sloot_1a_offset} meter van het sloot_1a punt"
+        )
         log.append("-" * 80)
         log.append("Grondlagen:")
         log.append("-" * 80)
@@ -168,9 +173,6 @@ class Scenario(BaseModel):
                     f"van {sl.top:.2f} tot {sl.bottom:.2f} grondsoort '{sl.soil_name}'"
                 )
         log.append("-" * 80)
-
-        if plot_file != "":
-            fig, ax = self.plot()
 
         # write soiltypes
         log.append("Grondsoorten:")
@@ -222,7 +224,17 @@ class Scenario(BaseModel):
                 f"No ditch found, point sloot_1c and sloot_1a share the same x coordinate."
             )
 
-        if sloot_1a.x + DITCH_BOUNDARY_OFFSET > self.crosssection.right:
+        # cut off the geometry at the given value
+        geometry_limit_right = sloot_1a.x + sloot_1a_offset
+        if geometry_limit_right > self.crosssection.right:
+            raise ValueError(
+                f"Trying to cut off the geometry at x={geometry_limit_right} which is beyond the right limit {self.crosssection.right}."
+            )
+
+        if plot_file != "":
+            fig, ax = self.plot(right_limit=geometry_limit_right)
+
+        if sloot_1a.x + DITCH_BOUNDARY_OFFSET > geometry_limit_right:
             raise ValueError(
                 f"The offset right of the sloot_1a is too large, the boundary exceeds the model limit."
             )
@@ -232,7 +244,7 @@ class Scenario(BaseModel):
         self.soilprofile.cut_top_at_z(sloot_1d.z)
 
         x1 = self.crosssection.left
-        x2 = self.crosssection.right
+        x2 = geometry_limit_right
         boundary_added = False
         soillayer_for_pipe_settings = self.soilprofile.get_first_acquifer_below(
             sloot_1d.z
@@ -291,25 +303,25 @@ class Scenario(BaseModel):
                     raise ValueError(
                         f"Scenario with invalid polderlevel mode '{self.polderlevel_mode}'"
                     )
-            id = m.add_layer(
+            layer_id = m.add_layer(
                 points=points, soil_code=layer.short_name, label=layer.soil_name
             )
+            # set the mesh to at least 2m but preferably the half of the height of the layer
+            mesh_size = round(min(layer.height / 2.0, 2.0), 2)
+            m.add_meshproperties(element_size=mesh_size, layer_id=layer_id)
+            log.append(f"Mesh size voor laag {layer.short_name}: {mesh_size:.2f}")
 
             # if layer == soillayer_for_pipe_settings: # check of het goed gaat met deze laag anders ook die erboven
             #     pipe_layer_id
 
             # ACTIES
-            # 1. DONE -> Boundary rechts (limiet rechts korter) -> boven en rechts (!)
-            # 2. Boundary slootbodem op onderzijde afdekkende laag
             # 3a. 0.3D
-            # 3b. mesh size aanpassen
             # --> opsturen / modelopzet vastzetten (8 dec)
             # 4. finetuning
             # 5. rapportage
 
             # OPMERKINGEN
             # acties 0.3d op laag
-            # rechts boundary leggen voor polderpeil bij kortere geometrie
             # grid grootte dusdanig dat er in ieder geval 2 driehoeken in kunnen (half hoogte) en bij lagen > 5m bv 2m gebruiken
             # optioneel, opdelen in vlakken (horizontaal) met fijner grind rondom pipe / sloot
             # ACTIE check doorlatendheden mail Hendrik -> settings.py
@@ -363,7 +375,7 @@ class Scenario(BaseModel):
         boundary_pl_points = [boundary_pl_start, Point(x=x2, z=boundary_pl_start.z)]
         if self.boundary_mode == BoundaryMode.PLTOP_AND_RIGHT:
             for z in self.soilprofile.get_soillayer_z_coordinates()[::-1]:
-                boundary_pl_points.append(Point(x=self.crosssection.right, z=z))
+                boundary_pl_points.append(Point(x=x2, z=z))
 
         m.add_boundary_condition(
             points=boundary_pl_points,
@@ -434,6 +446,12 @@ class Scenario(BaseModel):
         return m
 
     def to_dgeoflow_model(self) -> DGeoFlowModel:
+        """not implemented
+
+        the idea is to generate the complete levee model instead of cutting
+        of the geometry at the ditch bottom. Part of the code is done but
+        so far we decided to go with the simple model
+        """
         raise NotImplementedError
         m = DGeoFlowModel()
 
@@ -492,19 +510,28 @@ class Scenario(BaseModel):
 
         return m
 
-    def plot(self, filename: str = "", width: float = 20.0, height: float = 12.0):
+    def plot(
+        self,
+        right_limit: float,
+        filename: str = "",
+        width: float = 20.0,
+        height: float = 12.0,
+    ):
         """Genertae a plot of the model
 
         If filename is "" then the figure will be returned else the plot will
         be save to the given filename
 
         Args:
+            right_limit (float): the rightmost x coordinate of the geometry
             filename (str, optional): The name of the file. Defaults to "". If not set this function will return the figure
             width (float, optional): width of the plot. Defaults to 20.0.
             height (float, optional): height of the plot. Defaults to 12.0.
         """
         fig = Figure(figsize=(width, height))
         ax = fig.add_subplot()
+
+        width = right_limit - self.crosssection.left
 
         # grondlagen
         for sl in self.soilprofile.soillayers:
@@ -516,7 +543,7 @@ class Scenario(BaseModel):
                 ax.add_patch(
                     patches.Rectangle(
                         (self.crosssection.left, sl.bottom),
-                        self.crosssection.width,
+                        width,
                         sl.height,
                         facecolor=sl.color,
                         # hatch="///",
@@ -533,7 +560,7 @@ class Scenario(BaseModel):
                 ax.add_patch(
                     patches.Rectangle(
                         (self.crosssection.left, sl.bottom),
-                        self.crosssection.width,
+                        width,
                         sl.height,
                         color=sl.color,
                     )

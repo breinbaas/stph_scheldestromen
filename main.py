@@ -99,6 +99,9 @@ class InputData(BaseModel):
 # choices, choices...
 boundary_mode = PolderLevelMode.FIRST_LAYER_BOTTOM
 polderlevel_mode = BoundaryMode.PLTOP_AND_RIGHT
+sloot_1a_offset = (
+    40  # breedte in de geometrie die meegenomen wordt naast het sloot_1a punt
+)
 
 inputdata = InputData.from_pickle(
     PATH_INPUT_FILES,
@@ -111,7 +114,8 @@ for scenario in inputdata.scenarios[:10]:
     try:
         scenario.logfile = f"{PATH_OUTPUT_FILES}/{scenario.name}.{BOUNDARY_MODE_NAMES[boundary_mode]}.{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}.log.txt"  # For debugging
         dm = scenario.to_flat_dgeoflow_model(
-            plot_file=f"{PATH_OUTPUT_FILES}/{scenario.name}.{BOUNDARY_MODE_NAMES[boundary_mode]}.{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}.png"
+            sloot_1a_offset=sloot_1a_offset,
+            plot_file=f"{PATH_OUTPUT_FILES}/{scenario.name}.{BOUNDARY_MODE_NAMES[boundary_mode]}.{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}.png",
         )
         dm.serialize(
             Path(PATH_OUTPUT_FILES)
