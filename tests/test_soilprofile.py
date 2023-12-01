@@ -20,7 +20,7 @@ def test_get_left_boundary_z_coordinates():
         ],
     )
 
-    assert sp.get_left_boundary_z_coordinates() == [-10.0, -5.0, 0.0, 2.0]
+    assert sp.get_soillayer_z_coordinates() == [-10.0, -5.0, 0.0, 2.0]
 
 
 def test_cut_top_at_z():

@@ -111,8 +111,8 @@ SOILPARAMETERS = {
         "color": "#b5aeae",
     },
     "DZ": {
-        "k_hor": 1e-2,
-        "k_ver": 1e-2,
+        "k_hor": 5,
+        "k_ver": 5,
         "color": "#07e86c",
     },
     "HV": {
@@ -148,5 +148,3 @@ SOILPARAMETERS = {
 }
 
 # TODO zand (PL en ZA) heeft een bandbreedte van 0.864,2,4 m/d
-# geldt voor elke aquifer (dus bv ook DZ)
-# presentatie als dijpalen (x) en pipelengte (y)

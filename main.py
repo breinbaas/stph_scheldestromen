@@ -8,7 +8,13 @@ from typing import List
 
 from objects.soillayer import SoilLayer
 from objects.soilprofile import SoilProfile
-from objects.scenario import Scenario
+from objects.scenario import (
+    Scenario,
+    BoundaryMode,
+    PolderLevelMode,
+    BOUNDARY_MODE_NAMES,
+    POLDERLEVEL_MODE_NAMES,
+)
 
 load_dotenv()
 
@@ -32,7 +38,14 @@ class InputData(BaseModel):
     scenarios: List[Scenario] = []
 
     @classmethod
-    def from_pickle(cls, pickle_path, pickle_file, dsoil_pickle_file) -> "InputData":
+    def from_pickle(
+        cls,
+        pickle_path,
+        pickle_file,
+        dsoil_pickle_file,
+        boundary_mode: BoundaryMode = BoundaryMode.PLTOP,
+        polderlevel_mode: PolderLevelMode = PolderLevelMode.DITCH_BOTTOM,
+    ) -> "InputData":
         result = InputData()
 
         # scenario info
@@ -69,7 +82,13 @@ class InputData(BaseModel):
                     raise ValueError(f"Could not find soilprofile with id={id}")
 
                 result.scenarios.append(
-                    Scenario.from_dataframe_row(i, row, soilprofile)
+                    Scenario.from_dataframe_row(
+                        i,
+                        row,
+                        soilprofile,
+                        boundary_mode=boundary_mode,
+                        polderlevel_mode=polderlevel_mode,
+                    )
                 )
             except Exception as e:
                 raise e
@@ -77,15 +96,26 @@ class InputData(BaseModel):
         return result
 
 
-inputdata = InputData.from_pickle(PATH_INPUT_FILES, TOETSING_PICKLE, WBI_LOG_PICKLE)
+# choices, choices...
+boundary_mode = PolderLevelMode.FIRST_LAYER_BOTTOM
+polderlevel_mode = BoundaryMode.PLTOP_AND_RIGHT
+
+inputdata = InputData.from_pickle(
+    PATH_INPUT_FILES,
+    TOETSING_PICKLE,
+    WBI_LOG_PICKLE,
+    boundary_mode=boundary_mode,
+    polderlevel_mode=polderlevel_mode,
+)
 for scenario in inputdata.scenarios[:10]:
     try:
-        scenario.logfile = (
-            f"{PATH_OUTPUT_FILES}/{scenario.name}.log.txt"  # For debugging
-        )
+        scenario.logfile = f"{PATH_OUTPUT_FILES}/{scenario.name}.{BOUNDARY_MODE_NAMES[boundary_mode]}.{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}.log.txt"  # For debugging
         dm = scenario.to_flat_dgeoflow_model(
-            plot_file=f"{PATH_OUTPUT_FILES}/{scenario.name}.png"
+            plot_file=f"{PATH_OUTPUT_FILES}/{scenario.name}.{BOUNDARY_MODE_NAMES[boundary_mode]}.{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}.png"
         )
-        dm.serialize(Path(PATH_OUTPUT_FILES) / f"{scenario.name}.flat.flox")
+        dm.serialize(
+            Path(PATH_OUTPUT_FILES)
+            / f"{scenario.name}.{BOUNDARY_MODE_NAMES[boundary_mode]}.{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}.flat.flox"
+        )
     except Exception as e:
         print(f"Cannot handle scenario '{scenario.name}', got error '{e}'")

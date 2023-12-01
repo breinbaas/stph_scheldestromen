@@ -16,6 +16,7 @@ from geolib.models.dgeoflow.internal import (
 )
 from geolib.models.dgeoflow.internal import CalculationTypeEnum
 from copy import deepcopy
+from enum import IntEnum
 
 from objects.crosssection import Crosssection, CrosssectionPoint, CrosssectionPointType
 from objects.soilprofile import SoilProfile
@@ -31,11 +32,54 @@ from settings import (
 from helpers import get_name_from_point_type, get_soil_parameters
 
 
+# TODO klopt de sloot1a aanname? oftewel is de phreatic level gelijk aan sloot 1a.z?
+class BoundaryMode(IntEnum):
+    """This enum is used to select the prefered boundary conditions
+
+    PLTOP
+    1. the riverlevel is placed on the left side of the geometry, head=waterstand_bij_norm
+    2. the polder level is placed at the line at sloot_1c and sloot_1d at the top of the aquifer, head=max_zp_wp
+    3. the phreatic level is placed at sloot1c.x + an offset (DITCH_BOUNDARY_OFFSET in the settings) at the surface, head=sloot_1a.z
+
+
+    PLTOP_AND_RIGHT
+    this is equal to PLTOP but the right side of the geometry is also set as a boundary with head=sloot_1a.z
+    """
+
+    PLTOP = 0
+    PLTOP_AND_RIGHT = 1
+
+
+BOUNDARY_MODE_NAMES = {
+    BoundaryMode.PLTOP: "pltop",
+    BoundaryMode.PLTOP_AND_RIGHT: "pltopandright",
+}
+
+
+class PolderLevelMode(IntEnum):
+    """This enum is used to select the location of the boundary for the polder level
+
+    DITCH_BOTTOM
+    the boundary is put on the ditch bottom
+
+    FIRST_LAYER_BOTTOM
+    the boundary is put on the bottom of the first layer
+    (since we use a flat geometry this is the bottom of the layer below the ditch bottom)
+    """
+
+    DITCH_BOTTOM = 0
+    FIRST_LAYER_BOTTOM = 1
+
+
+POLDERLEVEL_MODE_NAMES = {
+    PolderLevelMode.DITCH_BOTTOM: "ditch_bottom",
+    PolderLevelMode.FIRST_LAYER_BOTTOM: "layer_bottom",
+}
+
+
 class Scenario(BaseModel):
     name: str
     crosssection: Crosssection
-    # intredepunt: float
-    # uittredepunt: float
     soilprofile: SoilProfile
     slootnummer: str
     max_zp_wp: float
@@ -43,11 +87,18 @@ class Scenario(BaseModel):
     ondergrens_slootpeil: float
     slootpeil: float
     waterstand_bij_norm: float
+    boundary_mode: BoundaryMode = BoundaryMode.PLTOP
+    polderlevel_mode: PolderLevelMode = PolderLevelMode.DITCH_BOTTOM
     logfile: str = ""  # if set then this will be used to store the log information
 
     @classmethod
     def from_dataframe_row(
-        cls, name, row: pd.Series, soilprofile: SoilProfile
+        cls,
+        name,
+        row: pd.Series,
+        soilprofile: SoilProfile,
+        boundary_mode: BoundaryMode = BoundaryMode.PLTOP,
+        polderlevel_mode: PolderLevelMode = PolderLevelMode.DITCH_BOTTOM,
     ) -> "Scenario":
         # NOTE because of the black formatting error we need to use PROFIEL_IDS[0]
         pointtypes = [DICT_POINT_IDS[id] for id in PROFIEL_IDS[0]]
@@ -68,6 +119,8 @@ class Scenario(BaseModel):
         result = Scenario(
             name=name,
             crosssection=crosssection,
+            boundary_mode=boundary_mode,
+            polderlevel_mode=polderlevel_mode,
             # intredepunt=float(row["xintredepunt"]),
             # uittredepunt=float(row["uittredepunt"]),
             soilprofile=soilprofile,
@@ -98,6 +151,10 @@ class Scenario(BaseModel):
         log.append("-" * 80)
         log.append(f"Waterstand bij norm: {self.waterstand_bij_norm}")
         log.append(f"Polderpeil: {self.max_zp_wp}")
+        log.append(f"Gekozen boundary mode: {BOUNDARY_MODE_NAMES[self.boundary_mode]}")
+        log.append(
+            f"Gekozen polderpeil mode: {POLDERLEVEL_MODE_NAMES[self.polderlevel_mode]}"
+        )
         log.append("-" * 80)
         log.append("Grondlagen:")
         log.append("-" * 80)
@@ -189,7 +246,7 @@ class Scenario(BaseModel):
                     [x1, x2, x2, x1],
                     [layer.top, layer.top, layer.bottom, layer.bottom],
                 )
-            ]
+            ]  # 0 = topleft, 1 = topright, 2 = bottomright, 3 = bottomleft
 
             if layer == soillayer_for_pipe_settings:
                 # we need to add the points for the pipe settings
@@ -199,20 +256,41 @@ class Scenario(BaseModel):
 
             if not boundary_added:
                 # first layer so add the points to enable the selection of the boundaries
-                # one at sloot_1d, one at sloot_1c for polder level
-                # and one at sloot_1c + DITCH_BOUNDARY_OFFSET for the phreatic level
-                boundary_pp_start = Point(x=sloot_1d.x, z=layer.top)
-                boundary_pp_end = Point(x=sloot_1c.x, z=layer.top)
-                boundary_pl_start = Point(
-                    x=sloot_1a.x + DITCH_BOUNDARY_OFFSET, z=layer.top
-                )
-                # insert those points
-                points = (
-                    [points[0]]
-                    + [boundary_pp_start, boundary_pp_end, boundary_pl_start]
-                    + points[1:]
-                )
-                boundary_added = True
+                if self.polderlevel_mode == PolderLevelMode.DITCH_BOTTOM:
+                    # one at sloot_1d, one at sloot_1c for polder level
+                    # and one at sloot_1c + DITCH_BOUNDARY_OFFSET for the phreatic level
+                    boundary_pp_start = Point(x=sloot_1d.x, z=layer.top)
+                    boundary_pp_end = Point(x=sloot_1c.x, z=layer.top)
+                    boundary_pl_start = Point(
+                        x=sloot_1a.x + DITCH_BOUNDARY_OFFSET, z=layer.top
+                    )
+                    # insert those points
+                    points = (
+                        [points[0]]
+                        + [boundary_pp_start, boundary_pp_end, boundary_pl_start]
+                        + points[1:]
+                    )
+                    boundary_added = True
+                elif self.polderlevel_mode == PolderLevelMode.FIRST_LAYER_BOTTOM:
+                    # one at x = sloot_1d, one at x = sloot_1c at bottom of the first layer
+                    # and one at sloot_1c + DITCH_BOUNDARY_OFFSET on surface for the phreatic level
+                    boundary_pp_start = Point(x=sloot_1d.x, z=layer.bottom)
+                    boundary_pp_end = Point(x=sloot_1c.x, z=layer.bottom)
+                    boundary_pl_start = Point(
+                        x=sloot_1a.x + DITCH_BOUNDARY_OFFSET, z=layer.top
+                    )
+                    # insert those points
+                    points = (
+                        [points[0], boundary_pl_start]
+                        + points[1:3]
+                        + [boundary_pp_end, boundary_pp_start]
+                        + [points[-1]]
+                    )
+                    boundary_added = True
+                else:
+                    raise ValueError(
+                        f"Scenario with invalid polderlevel mode '{self.polderlevel_mode}'"
+                    )
             id = m.add_layer(
                 points=points, soil_code=layer.short_name, label=layer.soil_name
             )
@@ -221,7 +299,7 @@ class Scenario(BaseModel):
             #     pipe_layer_id
 
             # ACTIES
-            # 1. Boundary rechts (limiet rechts korter) -> boven en rechts (!)
+            # 1. DONE -> Boundary rechts (limiet rechts korter) -> boven en rechts (!)
             # 2. Boundary slootbodem op onderzijde afdekkende laag
             # 3a. 0.3D
             # 3b. mesh size aanpassen
@@ -238,7 +316,7 @@ class Scenario(BaseModel):
 
         # add the river level boundary
         points_river_level = []
-        for z in self.soilprofile.get_left_boundary_z_coordinates():
+        for z in self.soilprofile.get_soillayer_z_coordinates():
             points_river_level.append(Point(x=self.crosssection.left, z=z))
 
         m.add_boundary_condition(
@@ -248,7 +326,7 @@ class Scenario(BaseModel):
         )
 
         if plot_file != "":
-            zs = self.soilprofile.get_left_boundary_z_coordinates()
+            zs = self.soilprofile.get_soillayer_z_coordinates()
             xs = [self.crosssection.left] * len(zs)
             ax.plot(xs, zs, "b", linewidth=5)
             ax.text(
@@ -282,16 +360,21 @@ class Scenario(BaseModel):
             )
 
         # add the phreatic level boundary
+        boundary_pl_points = [boundary_pl_start, Point(x=x2, z=boundary_pl_start.z)]
+        if self.boundary_mode == BoundaryMode.PLTOP_AND_RIGHT:
+            for z in self.soilprofile.get_soillayer_z_coordinates()[::-1]:
+                boundary_pl_points.append(Point(x=self.crosssection.right, z=z))
+
         m.add_boundary_condition(
-            points=[boundary_pl_start, Point(x=x2, z=boundary_pl_start.z)],
+            points=boundary_pl_points,
             head_level=sloot_1a.z,
             label="phreatic level",
         )
 
         if plot_file != "":
             ax.plot(
-                [boundary_pl_start.x, x2],
-                [boundary_pl_start.z, boundary_pl_start.z],
+                [p.x for p in boundary_pl_points],
+                [p.z for p in boundary_pl_points],
                 "b",
                 linewidth=5,
             )
