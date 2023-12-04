@@ -32,7 +32,6 @@ from settings import (
 from helpers import get_name_from_point_type, get_soil_parameters
 
 
-# TODO klopt de sloot1a aanname? oftewel is de phreatic level gelijk aan sloot 1a.z?
 class BoundaryMode(IntEnum):
     """This enum is used to select the prefered boundary conditions
 
@@ -135,7 +134,7 @@ class Scenario(BaseModel):
         return result
 
     def to_flat_dgeoflow_model(
-        self, sloot_1a_offset: float, plot_file: str = ""
+        self, sloot_1a_offset: float, k_zand: float, plot_file: str = ""
     ) -> DGeoFlowModel:
         """Convert the scenario to a DGeoFlow model where we limit the top of the geometry at the uittredepunt
 
@@ -178,13 +177,20 @@ class Scenario(BaseModel):
         log.append("Grondsoorten:")
         log.append("-" * 80)
         for code, params in SOILPARAMETERS.items():
+            if code in ["PL", "PLa", "ZA", "ZAa"]:
+                k_hor = k_zand
+                k_ver = k_zand
+            else:
+                k_hor = params["k_hor"]
+                k_ver = params["k_ver"]
+
             m.add_soil(
                 Soil(
                     name=code,
                     code=code,
                     storage_parameters=StorageParameters(
-                        vertical_permeability=params["k_ver"],
-                        horizontal_permeability=params["k_hor"],
+                        vertical_permeability=k_ver,
+                        horizontal_permeability=k_hor,
                     ),
                     color=Color(params["color"].replace("#", "")),
                 )
