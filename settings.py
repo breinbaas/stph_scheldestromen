@@ -146,5 +146,3 @@ SOILPARAMETERS = {
         "color": "#d8e35f",
     },
 }
-
-# TODO zand (PL en ZA) heeft een bandbreedte van 0.864,2,4 m/d
