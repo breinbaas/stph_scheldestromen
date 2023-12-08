@@ -107,6 +107,7 @@ class InputData(BaseModel):
 boundary_mode = BoundaryMode.PLRIGHT
 polderlevel_mode = PolderLevelMode.FIRST_LAYER_BOTTOM
 k_zand = 6  # m/day
+anisotropy_factor = 10  # H:V (V=H/anisotropy_factor)
 
 
 inputdata = InputData.from_pickle(
@@ -117,11 +118,11 @@ inputdata = InputData.from_pickle(
     polderlevel_mode=polderlevel_mode,
 )
 
-f_log = open("data/output/log.txt", "w")
-f_output = open(
-    f"data/output/result_{BOUNDARY_MODE_NAMES[boundary_mode]}_{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}_{k_zand:0.3f}.csv",
-    "w",
-)
+filename_log = f"{PATH_OUTPUT_FILES}/log_{BOUNDARY_MODE_NAMES[boundary_mode]}_{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}_k{k_zand:0.3f}_a{anisotropy_factor}.txt"
+f_log = open(filename_log, "w")
+
+filename_output = f"{PATH_OUTPUT_FILES}/result_{BOUNDARY_MODE_NAMES[boundary_mode]}_{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}_k{k_zand:0.3f}_a{anisotropy_factor}.csv"
+f_output = open(filename_output, "w")
 f_output.write(
     "scenario [-],boundary_mode [-],polderlevel_mode [-],k_zand [m/day],calculation_time [s],pipe_length [m]\n"
 )
@@ -135,27 +136,25 @@ for scenario in inputdata.scenarios:
     ):
         continue
     try:
-        scenario.logfile = f"{PATH_OUTPUT_FILES}/{scenario.name}.{BOUNDARY_MODE_NAMES[boundary_mode]}.{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}.log.txt"  # For debugging
+        scenario.logfile = f"{PATH_OUTPUT_FILES}/{scenario.name}.{BOUNDARY_MODE_NAMES[boundary_mode]}_{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}_k{k_zand:0.3f}_a{anisotropy_factor}.log.txt"  # For debugging
         dm = scenario.to_flat_dgeoflow_model(
             sloot_1a_offset=SLOOT_1A_OFFSET,
-            plot_file=f"{PATH_OUTPUT_FILES}/{scenario.name}.{BOUNDARY_MODE_NAMES[boundary_mode]}.{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}.png",
+            plot_file=f"{PATH_OUTPUT_FILES}/{scenario.name}.{BOUNDARY_MODE_NAMES[boundary_mode]}_{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}_k{k_zand:0.3f}_a{anisotropy_factor}.png",
             k_zand=k_zand,
+            anisotropy_factor=anisotropy_factor,
         )
         dm.serialize(
             Path(PATH_OUTPUT_FILES)
-            / f"{scenario.name}.{BOUNDARY_MODE_NAMES[boundary_mode]}.{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}.flat.flox"
+            / f"{scenario.name}.{BOUNDARY_MODE_NAMES[boundary_mode]}_{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}_k{k_zand:0.3f}_a{anisotropy_factor}.flat.flox"
         )
         start_time = time.time()
         dm.execute()
-        f_output = open(
-            f"data/output/result_{BOUNDARY_MODE_NAMES[boundary_mode]}_{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}_{k_zand:0.3f}.csv",
-            "a+",
-        )
+        f_output = open(filename_output, "a+")
         f_output.write(
             f"{scenario.name},{BOUNDARY_MODE_NAMES[boundary_mode]},{POLDERLEVEL_MODE_NAMES[polderlevel_mode]},{k_zand:0.3f},{(time.time() - start_time):.0f},{dm.output.PipeLength:.2f}\n"
         )
         f_output.close()
     except Exception as e:
-        f_log = open("data/output/log.txt", "a+")
+        f_log = open(filename_log, "a+")
         f_log.write(f"Cannot handle scenario '{scenario.name}', got error '{e}'\n")
         f_log.close()

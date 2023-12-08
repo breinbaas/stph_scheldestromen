@@ -30,8 +30,8 @@ from settings import (
     DEFAULT_D70,
     MIN_MESH_SIZE,
     SOILS_WITH_K_ZAND,
-    ANISOTROPY_FACTOR,
     RIGHT_SIDE_BOUNDARY_OFFSET,
+    PIPE_MESH_SIZE,
 )
 from helpers import get_name_from_point_type, get_soil_parameters
 
@@ -147,7 +147,11 @@ class Scenario(BaseModel):
         return int(self.name[1:].split("_")[0]) / 100
 
     def to_flat_dgeoflow_model(
-        self, sloot_1a_offset: float, k_zand: float, plot_file: str = ""
+        self,
+        sloot_1a_offset: float,
+        k_zand: float,
+        anisotropy_factor: int = 2,
+        plot_file: str = "",
     ) -> DGeoFlowModel:
         """Convert the scenario to a DGeoFlow model where we limit the top of the geometry at the uittredepunt
 
@@ -192,10 +196,10 @@ class Scenario(BaseModel):
         for code, params in SOILPARAMETERS.items():
             if code in SOILS_WITH_K_ZAND:  # override these soil properties with k_zand
                 k_hor = k_zand
-                k_ver = k_zand / ANISOTROPY_FACTOR
+                k_ver = k_zand / anisotropy_factor
             else:
-                k_hor = params["k_hor"] / ANISOTROPY_FACTOR
-                k_ver = params["k_ver"]
+                k_hor = params["k_hor"]
+                k_ver = params["k_ver"] / anisotropy_factor
 
             m.add_soil(
                 Soil(
@@ -241,12 +245,8 @@ class Scenario(BaseModel):
                 f"No ditch found, point sloot_1c and sloot_1a share the same x coordinate."
             )
 
-        # cut off the geometry at the given value
+        # cut off / lengthen the geometry at the given value
         geometry_limit_right = sloot_1a.x + sloot_1a_offset
-        # if geometry_limit_right > self.crosssection.right:
-        #     raise ValueError(
-        #         f"Trying to cut off the geometry at x={geometry_limit_right} which is beyond the right limit {self.crosssection.right}."
-        #     )
 
         if plot_file != "":
             fig, ax = self.plot(right_limit=geometry_limit_right)
@@ -351,10 +351,19 @@ class Scenario(BaseModel):
                 color="b",
             )
 
+        # use the 0.3d rule
+        # polderpeil + 0.3 * (slootbodem - bovenzijde piping laag)
+        head_level_03d = self.max_zp_wp + 0.3 * (
+            sloot_1d.z - soillayer_for_pipe_settings.top
+        )
+        log.append(
+            f"0.3d regel toegepast voor het potentiaal op de slootbodem {self.max_zp_wp:.2f}+0.3*({sloot_1d.z:.2f}-{soillayer_for_pipe_settings.top:.2f})={head_level_03d:.2f}"
+        )
+
         # add the polder level boundary
         m.add_boundary_condition(
             points=[boundary_pp_start, boundary_pp_end],
-            head_level=self.max_zp_wp,
+            head_level=head_level_03d,
             label="polder level",
         )
 
@@ -368,7 +377,7 @@ class Scenario(BaseModel):
             ax.text(
                 boundary_pp_start.x,
                 boundary_pp_start.z + 0.5,
-                f"head = {self.max_zp_wp}",
+                f"head (with 0.3d rule) = {head_level_03d:.2f}",
                 rotation=90,
                 color="b",
             )
@@ -456,7 +465,7 @@ class Scenario(BaseModel):
                 Label="Pipe",
                 D70=DEFAULT_D70 / 1000,  # um to mm
                 ErosionDirection=ErosionDirectionEnum.RIGHT_TO_LEFT,
-                ElementSize=1.0,
+                ElementSize=PIPE_MESH_SIZE,
                 Points=[
                     PersistablePoint(X=point_pipe_start.x, Z=point_pipe_start.z),
                     PersistablePoint(X=point_pipe_end.x, Z=point_pipe_end.z),
