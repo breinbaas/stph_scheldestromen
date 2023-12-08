@@ -28,6 +28,7 @@ from settings import (
     SOILPARAMETERS,
     DITCH_BOUNDARY_OFFSET,
     DEFAULT_D70,
+    MIN_MESH_SIZE,
 )
 from helpers import get_name_from_point_type, get_soil_parameters
 
@@ -313,7 +314,7 @@ class Scenario(BaseModel):
                 points=points, soil_code=layer.short_name, label=layer.soil_name
             )
             # set the mesh to at least 2m but preferably the half of the height of the layer
-            mesh_size = round(min(layer.height / 2.0, 2.0), 2)
+            mesh_size = round(min(layer.height / 2.0, MIN_MESH_SIZE), 2)
             m.add_meshproperties(element_size=mesh_size, layer_id=layer_id)
             log.append(f"Mesh size voor laag {layer.short_name}: {mesh_size:.2f}")
 

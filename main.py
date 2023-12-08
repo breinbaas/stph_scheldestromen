@@ -123,6 +123,8 @@ f_output = open(
 f_output.write(
     "scenario [-],boundary_mode [-],polderlevel_mode [-],k_zand [m/day],calculation_time [s],pipe_length [m]\n"
 )
+f_log.close()
+f_output.close()
 
 for scenario in inputdata.scenarios:
     try:
@@ -138,10 +140,19 @@ for scenario in inputdata.scenarios:
         )
         start_time = time.time()
         dm.execute()
+        f_output = open(
+            f"data/output/result_{BOUNDARY_MODE_NAMES[boundary_mode]}_{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}_{k_zand:0.3f}.csv",
+            "a+",
+        )
         f_output.write(
             f"{scenario.name},{BOUNDARY_MODE_NAMES[boundary_mode]},{POLDERLEVEL_MODE_NAMES[polderlevel_mode]},{k_zand:0.3f},{(time.time() - start_time):.0f},{dm.output.PipeLength:.2f}\n"
         )
+        f_output.close()
     except Exception as e:
+        f_log = open("data/output/log.txt", "a+")
         f_log.write(f"Cannot handle scenario '{scenario.name}', got error '{e}'\n")
+        f_log.close()
 
-f_output.close()
+
+# f_output.close()
+# f_log.close()
