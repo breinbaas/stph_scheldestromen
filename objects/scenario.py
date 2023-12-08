@@ -170,7 +170,7 @@ class Scenario(BaseModel):
             f"Gekozen polderpeil mode: {POLDERLEVEL_MODE_NAMES[self.polderlevel_mode]}"
         )
         log.append(
-            f"Geometrie afkappen op {sloot_1a_offset} meter van het sloot_1a punt"
+            f"Geometrie afkappen op / doortrekken tot {sloot_1a_offset}m van het sloot_1a punt"
         )
         log.append("-" * 80)
         log.append("Grondlagen:")
