@@ -31,6 +31,7 @@ from settings import (
     MIN_MESH_SIZE,
     SOILS_WITH_K_ZAND,
     ANISOTROPY_FACTOR,
+    RIGHT_SIDE_BOUNDARY_OFFSET,
 )
 from helpers import get_name_from_point_type, get_soil_parameters
 
@@ -46,15 +47,20 @@ class BoundaryMode(IntEnum):
 
     PLTOP_AND_RIGHT
     this is equal to PLTOP but the right side of the geometry is also set as a boundary with head=sloot_1a.z
+
+    PLRIGHT
+    this will only put the right side of the geometry on a level based on an offset of the left boundary
     """
 
     PLTOP = 0
     PLTOP_AND_RIGHT = 1
+    PLRIGHT = 2
 
 
 BOUNDARY_MODE_NAMES = {
     BoundaryMode.PLTOP: "pltop",
     BoundaryMode.PLTOP_AND_RIGHT: "pltopandright",
+    BoundaryMode.PLRIGHT: "plright",
 }
 
 
@@ -185,10 +191,10 @@ class Scenario(BaseModel):
         log.append("-" * 80)
         for code, params in SOILPARAMETERS.items():
             if code in SOILS_WITH_K_ZAND:  # override these soil properties with k_zand
-                k_hor = k_zand * ANISOTROPY_FACTOR
-                k_ver = k_zand
+                k_hor = k_zand
+                k_ver = k_zand / ANISOTROPY_FACTOR
             else:
-                k_hor = params["k_hor"] * ANISOTROPY_FACTOR
+                k_hor = params["k_hor"] / ANISOTROPY_FACTOR
                 k_ver = params["k_ver"]
 
             m.add_soil(
@@ -368,16 +374,43 @@ class Scenario(BaseModel):
             )
 
         # add the phreatic level boundary
-        boundary_pl_points = [boundary_pl_start, Point(x=x2, z=boundary_pl_start.z)]
-        if self.boundary_mode == BoundaryMode.PLTOP_AND_RIGHT:
+        if self.boundary_mode == BoundaryMode.PLTOP:
+            boundary_pl_points = [boundary_pl_start, Point(x=x2, z=boundary_pl_start.z)]
+        elif self.boundary_mode == BoundaryMode.PLTOP_AND_RIGHT:
+            boundary_pl_points = [boundary_pl_start, Point(x=x2, z=boundary_pl_start.z)]
             for z in self.soilprofile.get_soillayer_z_coordinates()[::-1]:
                 boundary_pl_points.append(Point(x=x2, z=z))
+        elif self.boundary_mode == BoundaryMode.PLRIGHT:
+            boundary_pl_points = [
+                Point(x=x2, z=z)
+                for z in self.soilprofile.get_soillayer_z_coordinates()[::-1]
+            ]
+        else:
+            raise ValueError(f"Unhandled boundary mode '{self.boundary_mode}'")
 
-        m.add_boundary_condition(
-            points=boundary_pl_points,
-            head_level=sloot_1a.z,
-            label="phreatic level",
-        )
+        if self.boundary_mode in [BoundaryMode.PLTOP, BoundaryMode.PLTOP_AND_RIGHT]:
+            m.add_boundary_condition(
+                points=boundary_pl_points,
+                head_level=sloot_1a.z,
+                label="phreatic level",
+            )
+            if self.boundary_mode == BoundaryMode.PLTOP:
+                log.append(
+                    f"De head voor de pl lijn ligt op het niveau {sloot_1d.z:.2f}m en aan de bovenzijde van de geometrie"
+                )
+            else:
+                log.append(
+                    f"De head voor de pl lijn ligt op het niveau {sloot_1d.z:.2f}m en aan de boven- en rechterzijde van de geometrie"
+                )
+        else:
+            m.add_boundary_condition(
+                points=boundary_pl_points,
+                head_level=self.waterstand_bij_norm - RIGHT_SIDE_BOUNDARY_OFFSET,
+                label="phreatic level",
+            )
+            log.append(
+                f"De head voor de pl lijn ligt op {RIGHT_SIDE_BOUNDARY_OFFSET:.1f}m onder de waterstand bij de norm aan de rechterzijde van de geometrie."
+            )
 
         if plot_file != "":
             ax.plot(
@@ -386,12 +419,21 @@ class Scenario(BaseModel):
                 "b",
                 linewidth=5,
             )
-            ax.text(
-                boundary_pl_start.x,
-                boundary_pl_start.z + 0.5,
-                f"head = {sloot_1a.z}",
-                color="b",
-            )
+            if self.boundary_mode in [BoundaryMode.PLTOP, BoundaryMode.PLTOP_AND_RIGHT]:
+                ax.text(
+                    boundary_pl_start.x,
+                    boundary_pl_start.z + 0.5,
+                    f"head = {sloot_1a.z}",
+                    color="b",
+                )
+            elif self.boundary_mode == BoundaryMode.PLRIGHT:
+                ax.text(
+                    x2 + 0.5,
+                    zs[0] + 0.5,
+                    f"head = {(self.waterstand_bij_norm - RIGHT_SIDE_BOUNDARY_OFFSET):.3f}",
+                    rotation=90,
+                    color="b",
+                )
 
         # pipe trajectory
         if point_pipe_start is None:

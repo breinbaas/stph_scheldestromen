@@ -103,14 +103,13 @@ class InputData(BaseModel):
 
 
 # choices, choices...
-boundary_mode = PolderLevelMode.FIRST_LAYER_BOTTOM
-polderlevel_mode = BoundaryMode.PLTOP_AND_RIGHT
+boundary_mode = BoundaryMode.PLRIGHT
+polderlevel_mode = PolderLevelMode.FIRST_LAYER_BOTTOM
 sloot_1a_offset = (
     40  # breedte in de geometrie die meegenomen wordt naast het sloot_1a punt
 )
-k_zand = 6  # standaard waarden -> 0.864, 2, 4, 10 m/dag voor grondsoortnamen ["PL", "PLa", "ZA", "ZAa"]
+k_zand = 6  # m/day
 
-# TODO > DZ en AA staat vast op 5m/dag -> ok?
 
 inputdata = InputData.from_pickle(
     PATH_INPUT_FILES,
