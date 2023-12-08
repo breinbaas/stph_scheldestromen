@@ -34,6 +34,11 @@ WBI_LOG_PICKLE = os.environ.get(
     "WBI_LOG_PICKLE"
 )  # the pickle file with soil information
 
+# bereken enkel de scenarios waar de dijkpaal hm groter is dan deze waarde
+DIJKPAAL_LIMIT_LEFT = 404
+# bereken enkel de scenarios waar de dijkpaal hm kleiner is dan deze waarde
+DIJKPAAL_LIMIT_RIGHT = 490
+
 
 class InputData(BaseModel):
     scenarios: List[Scenario] = []
@@ -103,7 +108,7 @@ polderlevel_mode = BoundaryMode.PLTOP_AND_RIGHT
 sloot_1a_offset = (
     40  # breedte in de geometrie die meegenomen wordt naast het sloot_1a punt
 )
-k_zand = 0.864  # standaard waarden -> 0.864, 2, 4, 10 m/dag voor grondsoortnamen ["PL", "PLa", "ZA", "ZAa"]
+k_zand = 6  # standaard waarden -> 0.864, 2, 4, 10 m/dag voor grondsoortnamen ["PL", "PLa", "ZA", "ZAa"]
 
 # TODO > DZ en AA staat vast op 5m/dag -> ok?
 
@@ -127,6 +132,11 @@ f_log.close()
 f_output.close()
 
 for scenario in inputdata.scenarios:
+    if (
+        scenario.dijkpaal < DIJKPAAL_LIMIT_LEFT
+        or scenario.dijkpaal > DIJKPAAL_LIMIT_RIGHT
+    ):
+        continue
     try:
         scenario.logfile = f"{PATH_OUTPUT_FILES}/{scenario.name}.{BOUNDARY_MODE_NAMES[boundary_mode]}.{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}.log.txt"  # For debugging
         dm = scenario.to_flat_dgeoflow_model(
@@ -152,7 +162,3 @@ for scenario in inputdata.scenarios:
         f_log = open("data/output/log.txt", "a+")
         f_log.write(f"Cannot handle scenario '{scenario.name}', got error '{e}'\n")
         f_log.close()
-
-
-# f_output.close()
-# f_log.close()

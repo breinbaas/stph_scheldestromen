@@ -6,6 +6,8 @@ LIMIT_RIGHT = 100.0  # limit the crosssection to the given value on the right si
 DITCH_BOUNDARY_OFFSET = 1.0  # distance from sloot_1c point to the start of the boundary for the phreatic level
 DEFAULT_D70 = 100  # in um (micrometers = mm * 1000)
 MIN_MESH_SIZE = 2  # in m
+ANISOTROPY_FACTOR = 2  # V:H CAREFUL this implies that k_hor and k_ver are equal in the SOILPARAMETERS section!
+SOILS_WITH_K_ZAND = ["PL", "PLa", "ZA", "ZAa", "CK16", "CK18"]
 
 DICT_POINT_IDS = {
     "MV_bin": CrosssectionPointType.MV_BINNEN,

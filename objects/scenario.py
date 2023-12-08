@@ -29,6 +29,8 @@ from settings import (
     DITCH_BOUNDARY_OFFSET,
     DEFAULT_D70,
     MIN_MESH_SIZE,
+    SOILS_WITH_K_ZAND,
+    ANISOTROPY_FACTOR,
 )
 from helpers import get_name_from_point_type, get_soil_parameters
 
@@ -134,6 +136,10 @@ class Scenario(BaseModel):
 
         return result
 
+    @property
+    def dijkpaal(self) -> int:
+        return int(self.name[1:].split("_")[0]) / 100
+
     def to_flat_dgeoflow_model(
         self, sloot_1a_offset: float, k_zand: float, plot_file: str = ""
     ) -> DGeoFlowModel:
@@ -178,11 +184,11 @@ class Scenario(BaseModel):
         log.append("Grondsoorten:")
         log.append("-" * 80)
         for code, params in SOILPARAMETERS.items():
-            if code in ["PL", "PLa", "ZA", "ZAa"]:
-                k_hor = k_zand
+            if code in SOILS_WITH_K_ZAND:  # override these soil properties with k_zand
+                k_hor = k_zand * ANISOTROPY_FACTOR
                 k_ver = k_zand
             else:
-                k_hor = params["k_hor"]
+                k_hor = params["k_hor"] * ANISOTROPY_FACTOR
                 k_ver = params["k_ver"]
 
             m.add_soil(
@@ -197,9 +203,7 @@ class Scenario(BaseModel):
                 )
             )
 
-            log.append(
-                f"Adding soil '{code}', k_ver={params['k_ver']}, k_hor={params['k_hor']}"
-            )
+            log.append(f"Adding soil '{code}', k_ver={k_ver}, k_hor={k_hor}")
         log.append("-" * 80)
 
         # we need sloot 1d and 1c to define our polder level boundary
@@ -317,21 +321,6 @@ class Scenario(BaseModel):
             mesh_size = round(min(layer.height / 2.0, MIN_MESH_SIZE), 2)
             m.add_meshproperties(element_size=mesh_size, layer_id=layer_id)
             log.append(f"Mesh size voor laag {layer.short_name}: {mesh_size:.2f}")
-
-            # if layer == soillayer_for_pipe_settings: # check of het goed gaat met deze laag anders ook die erboven
-            #     pipe_layer_id
-
-            # ACTIES
-            # 3a. 0.3D
-            # --> opsturen / modelopzet vastzetten (8 dec)
-            # 4. finetuning
-            # 5. rapportage
-
-            # OPMERKINGEN
-            # acties 0.3d op laag
-            # grid grootte dusdanig dat er in ieder geval 2 driehoeken in kunnen (half hoogte) en bij lagen > 5m bv 2m gebruiken
-            # optioneel, opdelen in vlakken (horizontaal) met fijner grind rondom pipe / sloot
-            # ACTIE check doorlatendheden mail Hendrik -> settings.py
 
         # add the river level boundary
         points_river_level = []
