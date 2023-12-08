@@ -16,6 +16,7 @@ from objects.scenario import (
     BOUNDARY_MODE_NAMES,
     POLDERLEVEL_MODE_NAMES,
 )
+from settings import SLOOT_1A_OFFSET
 
 load_dotenv()
 
@@ -105,9 +106,6 @@ class InputData(BaseModel):
 # choices, choices...
 boundary_mode = BoundaryMode.PLRIGHT
 polderlevel_mode = PolderLevelMode.FIRST_LAYER_BOTTOM
-sloot_1a_offset = (
-    40  # breedte in de geometrie die meegenomen wordt naast het sloot_1a punt
-)
 k_zand = 6  # m/day
 
 
@@ -139,7 +137,7 @@ for scenario in inputdata.scenarios:
     try:
         scenario.logfile = f"{PATH_OUTPUT_FILES}/{scenario.name}.{BOUNDARY_MODE_NAMES[boundary_mode]}.{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}.log.txt"  # For debugging
         dm = scenario.to_flat_dgeoflow_model(
-            sloot_1a_offset=sloot_1a_offset,
+            sloot_1a_offset=SLOOT_1A_OFFSET,
             plot_file=f"{PATH_OUTPUT_FILES}/{scenario.name}.{BOUNDARY_MODE_NAMES[boundary_mode]}.{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}.png",
             k_zand=k_zand,
         )

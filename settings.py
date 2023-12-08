@@ -18,6 +18,7 @@ SOILS_WITH_K_ZAND = [
 RIGHT_SIDE_BOUNDARY_OFFSET = (
     3  # the right boundary will have the level of the left side minus this offset
 )
+SLOOT_1A_OFFSET = 40  # the length of the geometry from the sloot1a point (rightmost ditch point) to the right
 
 DICT_POINT_IDS = {
     "MV_bin": CrosssectionPointType.MV_BINNEN,

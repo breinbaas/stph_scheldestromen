@@ -243,10 +243,10 @@ class Scenario(BaseModel):
 
         # cut off the geometry at the given value
         geometry_limit_right = sloot_1a.x + sloot_1a_offset
-        if geometry_limit_right > self.crosssection.right:
-            raise ValueError(
-                f"Trying to cut off the geometry at x={geometry_limit_right} which is beyond the right limit {self.crosssection.right}."
-            )
+        # if geometry_limit_right > self.crosssection.right:
+        #     raise ValueError(
+        #         f"Trying to cut off the geometry at x={geometry_limit_right} which is beyond the right limit {self.crosssection.right}."
+        #     )
 
         if plot_file != "":
             fig, ax = self.plot(right_limit=geometry_limit_right)
@@ -555,7 +555,7 @@ class Scenario(BaseModel):
         width: float = 20.0,
         height: float = 12.0,
     ):
-        """Genertae a plot of the model
+        """Generate a plot of the model
 
         If filename is "" then the figure will be returned else the plot will
         be save to the given filename
