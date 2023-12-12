@@ -107,7 +107,7 @@ class InputData(BaseModel):
 boundary_mode = BoundaryMode.PLRIGHT
 polderlevel_mode = PolderLevelMode.FIRST_LAYER_BOTTOM
 k_zand = 6  # m/day
-anisotropy_factor = 10  # H:V (V=H/anisotropy_factor)
+anisotropy_factor = 2  # H:V (V=H/anisotropy_factor)
 
 
 inputdata = InputData.from_pickle(
