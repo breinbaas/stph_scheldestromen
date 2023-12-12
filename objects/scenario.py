@@ -29,6 +29,9 @@ from settings import (
     DITCH_BOUNDARY_OFFSET,
     DEFAULT_D70,
     MIN_MESH_SIZE,
+    SOILS_WITH_K_ZAND,
+    RIGHT_SIDE_BOUNDARY_OFFSET,
+    PIPE_MESH_SIZE,
 )
 from helpers import get_name_from_point_type, get_soil_parameters
 
@@ -44,15 +47,20 @@ class BoundaryMode(IntEnum):
 
     PLTOP_AND_RIGHT
     this is equal to PLTOP but the right side of the geometry is also set as a boundary with head=sloot_1a.z
+
+    PLRIGHT
+    this will only put the right side of the geometry on a level based on an offset of the left boundary
     """
 
     PLTOP = 0
     PLTOP_AND_RIGHT = 1
+    PLRIGHT = 2
 
 
 BOUNDARY_MODE_NAMES = {
     BoundaryMode.PLTOP: "pltop",
     BoundaryMode.PLTOP_AND_RIGHT: "pltopandright",
+    BoundaryMode.PLRIGHT: "plright",
 }
 
 
@@ -134,8 +142,16 @@ class Scenario(BaseModel):
 
         return result
 
+    @property
+    def dijkpaal(self) -> int:
+        return int(self.name[1:].split("_")[0]) / 100
+
     def to_flat_dgeoflow_model(
-        self, sloot_1a_offset: float, k_zand: float, plot_file: str = ""
+        self,
+        sloot_1a_offset: float,
+        k_zand: float,
+        anisotropy_factor: int = 2,
+        plot_file: str = "",
     ) -> DGeoFlowModel:
         """Convert the scenario to a DGeoFlow model where we limit the top of the geometry at the uittredepunt
 
@@ -158,7 +174,7 @@ class Scenario(BaseModel):
             f"Gekozen polderpeil mode: {POLDERLEVEL_MODE_NAMES[self.polderlevel_mode]}"
         )
         log.append(
-            f"Geometrie afkappen op {sloot_1a_offset} meter van het sloot_1a punt"
+            f"Geometrie afkappen op / doortrekken tot {sloot_1a_offset}m van het sloot_1a punt"
         )
         log.append("-" * 80)
         log.append("Grondlagen:")
@@ -178,12 +194,12 @@ class Scenario(BaseModel):
         log.append("Grondsoorten:")
         log.append("-" * 80)
         for code, params in SOILPARAMETERS.items():
-            if code in ["PL", "PLa", "ZA", "ZAa"]:
+            if code in SOILS_WITH_K_ZAND:  # override these soil properties with k_zand
                 k_hor = k_zand
-                k_ver = k_zand
+                k_ver = k_zand / anisotropy_factor
             else:
                 k_hor = params["k_hor"]
-                k_ver = params["k_ver"]
+                k_ver = params["k_ver"] / anisotropy_factor
 
             m.add_soil(
                 Soil(
@@ -197,9 +213,7 @@ class Scenario(BaseModel):
                 )
             )
 
-            log.append(
-                f"Adding soil '{code}', k_ver={params['k_ver']}, k_hor={params['k_hor']}"
-            )
+            log.append(f"Adding soil '{code}', k_ver={k_ver}, k_hor={k_hor}")
         log.append("-" * 80)
 
         # we need sloot 1d and 1c to define our polder level boundary
@@ -231,12 +245,8 @@ class Scenario(BaseModel):
                 f"No ditch found, point sloot_1c and sloot_1a share the same x coordinate."
             )
 
-        # cut off the geometry at the given value
+        # cut off / lengthen the geometry at the given value
         geometry_limit_right = sloot_1a.x + sloot_1a_offset
-        if geometry_limit_right > self.crosssection.right:
-            raise ValueError(
-                f"Trying to cut off the geometry at x={geometry_limit_right} which is beyond the right limit {self.crosssection.right}."
-            )
 
         if plot_file != "":
             fig, ax = self.plot(right_limit=geometry_limit_right)
@@ -318,21 +328,6 @@ class Scenario(BaseModel):
             m.add_meshproperties(element_size=mesh_size, layer_id=layer_id)
             log.append(f"Mesh size voor laag {layer.short_name}: {mesh_size:.2f}")
 
-            # if layer == soillayer_for_pipe_settings: # check of het goed gaat met deze laag anders ook die erboven
-            #     pipe_layer_id
-
-            # ACTIES
-            # 3a. 0.3D
-            # --> opsturen / modelopzet vastzetten (8 dec)
-            # 4. finetuning
-            # 5. rapportage
-
-            # OPMERKINGEN
-            # acties 0.3d op laag
-            # grid grootte dusdanig dat er in ieder geval 2 driehoeken in kunnen (half hoogte) en bij lagen > 5m bv 2m gebruiken
-            # optioneel, opdelen in vlakken (horizontaal) met fijner grind rondom pipe / sloot
-            # ACTIE check doorlatendheden mail Hendrik -> settings.py
-
         # add the river level boundary
         points_river_level = []
         for z in self.soilprofile.get_soillayer_z_coordinates():
@@ -356,10 +351,19 @@ class Scenario(BaseModel):
                 color="b",
             )
 
+        # use the 0.3d rule
+        # polderpeil + 0.3 * (slootbodem - bovenzijde piping laag)
+        head_level_03d = self.max_zp_wp + 0.3 * (
+            sloot_1d.z - soillayer_for_pipe_settings.top
+        )
+        log.append(
+            f"0.3d regel toegepast voor het potentiaal op de slootbodem {self.max_zp_wp:.2f}+0.3*({sloot_1d.z:.2f}-{soillayer_for_pipe_settings.top:.2f})={head_level_03d:.2f}"
+        )
+
         # add the polder level boundary
         m.add_boundary_condition(
             points=[boundary_pp_start, boundary_pp_end],
-            head_level=self.max_zp_wp,
+            head_level=head_level_03d,
             label="polder level",
         )
 
@@ -373,22 +377,49 @@ class Scenario(BaseModel):
             ax.text(
                 boundary_pp_start.x,
                 boundary_pp_start.z + 0.5,
-                f"head = {self.max_zp_wp}",
+                f"head (with 0.3d rule) = {head_level_03d:.2f}",
                 rotation=90,
                 color="b",
             )
 
         # add the phreatic level boundary
-        boundary_pl_points = [boundary_pl_start, Point(x=x2, z=boundary_pl_start.z)]
-        if self.boundary_mode == BoundaryMode.PLTOP_AND_RIGHT:
+        if self.boundary_mode == BoundaryMode.PLTOP:
+            boundary_pl_points = [boundary_pl_start, Point(x=x2, z=boundary_pl_start.z)]
+        elif self.boundary_mode == BoundaryMode.PLTOP_AND_RIGHT:
+            boundary_pl_points = [boundary_pl_start, Point(x=x2, z=boundary_pl_start.z)]
             for z in self.soilprofile.get_soillayer_z_coordinates()[::-1]:
                 boundary_pl_points.append(Point(x=x2, z=z))
+        elif self.boundary_mode == BoundaryMode.PLRIGHT:
+            boundary_pl_points = [
+                Point(x=x2, z=z)
+                for z in self.soilprofile.get_soillayer_z_coordinates()[::-1]
+            ]
+        else:
+            raise ValueError(f"Unhandled boundary mode '{self.boundary_mode}'")
 
-        m.add_boundary_condition(
-            points=boundary_pl_points,
-            head_level=sloot_1a.z,
-            label="phreatic level",
-        )
+        if self.boundary_mode in [BoundaryMode.PLTOP, BoundaryMode.PLTOP_AND_RIGHT]:
+            m.add_boundary_condition(
+                points=boundary_pl_points,
+                head_level=sloot_1a.z,
+                label="phreatic level",
+            )
+            if self.boundary_mode == BoundaryMode.PLTOP:
+                log.append(
+                    f"De head voor de pl lijn ligt op het niveau {sloot_1d.z:.2f}m en aan de bovenzijde van de geometrie"
+                )
+            else:
+                log.append(
+                    f"De head voor de pl lijn ligt op het niveau {sloot_1d.z:.2f}m en aan de boven- en rechterzijde van de geometrie"
+                )
+        else:
+            m.add_boundary_condition(
+                points=boundary_pl_points,
+                head_level=self.waterstand_bij_norm - RIGHT_SIDE_BOUNDARY_OFFSET,
+                label="phreatic level",
+            )
+            log.append(
+                f"De head voor de pl lijn ligt op {RIGHT_SIDE_BOUNDARY_OFFSET:.1f}m onder de waterstand bij de norm aan de rechterzijde van de geometrie."
+            )
 
         if plot_file != "":
             ax.plot(
@@ -397,12 +428,21 @@ class Scenario(BaseModel):
                 "b",
                 linewidth=5,
             )
-            ax.text(
-                boundary_pl_start.x,
-                boundary_pl_start.z + 0.5,
-                f"head = {sloot_1a.z}",
-                color="b",
-            )
+            if self.boundary_mode in [BoundaryMode.PLTOP, BoundaryMode.PLTOP_AND_RIGHT]:
+                ax.text(
+                    boundary_pl_start.x,
+                    boundary_pl_start.z + 0.5,
+                    f"head = {sloot_1a.z}",
+                    color="b",
+                )
+            elif self.boundary_mode == BoundaryMode.PLRIGHT:
+                ax.text(
+                    x2 + 0.5,
+                    zs[0] + 0.5,
+                    f"head = {(self.waterstand_bij_norm - RIGHT_SIDE_BOUNDARY_OFFSET):.3f}",
+                    rotation=90,
+                    color="b",
+                )
 
         # pipe trajectory
         if point_pipe_start is None:
@@ -425,7 +465,7 @@ class Scenario(BaseModel):
                 Label="Pipe",
                 D70=DEFAULT_D70 / 1000,  # um to mm
                 ErosionDirection=ErosionDirectionEnum.RIGHT_TO_LEFT,
-                ElementSize=1.0,
+                ElementSize=PIPE_MESH_SIZE,
                 Points=[
                     PersistablePoint(X=point_pipe_start.x, Z=point_pipe_start.z),
                     PersistablePoint(X=point_pipe_end.x, Z=point_pipe_end.z),
@@ -524,7 +564,7 @@ class Scenario(BaseModel):
         width: float = 20.0,
         height: float = 12.0,
     ):
-        """Genertae a plot of the model
+        """Generate a plot of the model
 
         If filename is "" then the figure will be returned else the plot will
         be save to the given filename

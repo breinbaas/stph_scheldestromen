@@ -6,6 +6,19 @@ LIMIT_RIGHT = 100.0  # limit the crosssection to the given value on the right si
 DITCH_BOUNDARY_OFFSET = 1.0  # distance from sloot_1c point to the start of the boundary for the phreatic level
 DEFAULT_D70 = 100  # in um (micrometers = mm * 1000)
 MIN_MESH_SIZE = 2  # in m
+SOILS_WITH_K_ZAND = [
+    "PL",
+    "PLa",
+    "ZA",
+    "ZAa",
+    "CK16",
+    "CK18",
+]  # these soils will get the k_zand instead of the parameters in the settings
+RIGHT_SIDE_BOUNDARY_OFFSET = (
+    3  # the right boundary will have the level of the left side minus this offset
+)
+SLOOT_1A_OFFSET = 40  # the length of the geometry from the sloot1a point (rightmost ditch point) to the right
+PIPE_MESH_SIZE = 0.5
 
 DICT_POINT_IDS = {
     "MV_bin": CrosssectionPointType.MV_BINNEN,
@@ -49,7 +62,7 @@ PROFIEL_IDS = (  # NOTE this is nasty way to use () but this happens due to an e
     ],
 )
 
-
+# note that the parameters can be overridden if you add the soil code to the SOILS_WITH_K_ZAND list
 SOILPARAMETERS = {
     "AA": {
         "k_hor": 5,
