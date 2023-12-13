@@ -33,7 +33,7 @@ from settings import (
     RIGHT_SIDE_BOUNDARY_OFFSET,
     PIPE_MESH_SIZE,
 )
-from helpers import get_name_from_point_type, get_soil_parameters
+from helpers import get_name_from_point_type, get_soil_parameters, calc_regression
 
 
 class BoundaryMode(IntEnum):
@@ -99,6 +99,11 @@ class Scenario(BaseModel):
     polderlevel_mode: PolderLevelMode = PolderLevelMode.DITCH_BOTTOM
     logfile: str = ""  # if set then this will be used to store the log information
 
+    x_uittredepunt: float = 0.0
+    dx_inuittredepunt: float = 0.0
+    sth_intredepunt: float = 0.0
+    sth_uittredepunt: float = 0.0
+
     @classmethod
     def from_dataframe_row(
         cls,
@@ -138,6 +143,12 @@ class Scenario(BaseModel):
             ondergrens_slootpeil=float(row["ondergrens_slootpeil_mnap"]),
             slootpeil=float(row["slootpeil_mnap"]),
             waterstand_bij_norm=float(row["waterstand_bij_norm_mnap"]),
+            x_uittredepunt=float(row["uittredepunt"]),
+            dx_inuittredepunt=float(row["xintredepunt__x_uittredepunt"]),
+            sth_intredepunt=float(row["stijghoogte_intredepunt_mnap"]),
+            sth_uittredepunt=float(
+                row["stijghoogte_uittredepunt_gebiedsschematisatie_mnap"]
+            ),
         )
 
         return result
@@ -176,6 +187,21 @@ class Scenario(BaseModel):
         log.append(
             f"Geometrie afkappen op / doortrekken tot {sloot_1a_offset}m van het sloot_1a punt"
         )
+        log.append(f"Stijghoogte intredepunt: {self.sth_intredepunt:.2f}")
+        log.append(f"Stijghoogte uittredepunt: {self.sth_uittredepunt:.2f}")
+        log.append(f"X uittredepunt: {self.x_uittredepunt:.2f}")
+        log.append(f"Afstand tussen in- en uittredepunt: {self.dx_inuittredepunt:.2f}")
+
+        # stijghoogte right side of geometry
+        sth_right_boundary = calc_regression(
+            [0.1, self.dx_inuittredepunt],
+            [self.sth_intredepunt, self.sth_uittredepunt],
+            self.crosssection.right
+            - self.x_uittredepunt
+            + self.dx_inuittredepunt,  # distance right side geom to intredepunt
+        )[1]
+        log.append(f"Stijghoogte aan rechterzijde geometry: {sth_right_boundary:.2f}")
+
         log.append("-" * 80)
         log.append("Grondlagen:")
         log.append("-" * 80)
@@ -249,7 +275,11 @@ class Scenario(BaseModel):
         geometry_limit_right = sloot_1a.x + sloot_1a_offset
 
         if plot_file != "":
-            fig, ax = self.plot(right_limit=geometry_limit_right)
+            fig, ax = self.plot(
+                right_limit=geometry_limit_right,
+                k_zand=k_zand,
+                anisotropy_factor=anisotropy_factor,
+            )
 
         if sloot_1a.x + DITCH_BOUNDARY_OFFSET > geometry_limit_right:
             raise ValueError(
@@ -414,11 +444,11 @@ class Scenario(BaseModel):
         else:
             m.add_boundary_condition(
                 points=boundary_pl_points,
-                head_level=self.waterstand_bij_norm - RIGHT_SIDE_BOUNDARY_OFFSET,
+                head_level=sth_right_boundary,
                 label="phreatic level",
             )
             log.append(
-                f"De head voor de pl lijn ligt op {RIGHT_SIDE_BOUNDARY_OFFSET:.1f}m onder de waterstand bij de norm aan de rechterzijde van de geometrie."
+                f"De head voor de pl lijn ligt op {sth_right_boundary:.1f}m en is berekend via extrapolatie op de stijghoogte van de in- en uittredepunten."
             )
 
         if plot_file != "":
@@ -439,7 +469,7 @@ class Scenario(BaseModel):
                 ax.text(
                     x2 + 0.5,
                     zs[0] + 0.5,
-                    f"head = {(self.waterstand_bij_norm - RIGHT_SIDE_BOUNDARY_OFFSET):.3f}",
+                    f"head = {sth_right_boundary:.3f}",
                     rotation=90,
                     color="b",
                 )
@@ -560,6 +590,8 @@ class Scenario(BaseModel):
     def plot(
         self,
         right_limit: float,
+        k_zand: float,
+        anisotropy_factor: float,
         filename: str = "",
         width: float = 20.0,
         height: float = 12.0,
@@ -585,6 +617,15 @@ class Scenario(BaseModel):
             # we want to show the k values
             soilparams = get_soil_parameters(sl.short_name)
 
+            if (
+                sl.short_name in SOILS_WITH_K_ZAND
+            ):  # override these soil properties with k_zand
+                k_hor = k_zand
+                k_ver = k_zand / anisotropy_factor
+            else:
+                k_hor = soilparams["k_hor"]
+                k_ver = soilparams["k_ver"] / anisotropy_factor
+
             # aquifer krijgt hatching
             if sl == self.soilprofile.aquifer:
                 ax.add_patch(
@@ -601,7 +642,7 @@ class Scenario(BaseModel):
                 ax.text(
                     self.crosssection.left,
                     sl.bottom + 0.1,
-                    f"AQ: {sl.soil_name} (k;hor={soilparams['k_hor']}, k;ver={soilparams['k_ver']})",
+                    f"AQ: {sl.soil_name} (k;hor={k_hor:.3f}, k;ver={k_ver:.3f})",
                 )
             else:
                 ax.add_patch(
@@ -615,7 +656,7 @@ class Scenario(BaseModel):
                 ax.text(
                     self.crosssection.left,
                     sl.bottom + 0.1,
-                    f"{sl.soil_name} (k;hor={soilparams['k_hor']}, k;ver={soilparams['k_ver']})",
+                    f"{sl.soil_name} (k;hor={k_hor:.3f}, k;ver={k_ver:.3f})",
                 )
 
         # dwarsprofiel
