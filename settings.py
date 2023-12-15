@@ -7,6 +7,8 @@ DITCH_BOUNDARY_OFFSET = 1.0  # distance from sloot_1c point to the start of the 
 DEFAULT_D70 = 100  # in um (micrometers = mm * 1000)
 MIN_MESH_SIZE = 2  # in m
 SOILS_WITH_K_ZAND = [
+    "AA",
+    "DZ",
     "PL",
     "PLa",
     "ZA",
