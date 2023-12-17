@@ -126,7 +126,14 @@ class Scenario(BaseModel):
 
         crosssection = Crosssection.from_points(points=dppoints)
         crosssection.mirror()
-        crosssection.limit_left(LIMIT_LEFT)
+
+        x_in = row['uittredepunt'] + row['kwelweglengte']
+        try:
+            crosssection.limit_left(x_in)
+            crosssection.limit_right(LIMIT_RIGHT)
+        except Exception as e:
+            print(f"Linker en rechter limiet instellen gaat niet goed bij {name}")
+
         crosssection.limit_right(LIMIT_RIGHT)
 
         result = Scenario(
@@ -191,6 +198,9 @@ class Scenario(BaseModel):
         log.append(f"Stijghoogte uittredepunt: {self.sth_uittredepunt:.2f}")
         log.append(f"X uittredepunt: {self.x_uittredepunt:.2f}")
         log.append(f"Afstand tussen in- en uittredepunt: {self.dx_inuittredepunt:.2f}")
+        #x_intredepunt = self.x_uittredepunt - self.dx_inuittredepunt
+        #log.append(f"X intredepunt: {x_intredepunt:.2f}")
+        #self.crosssection.limit_left(x_intredepunt)        
 
         # stijghoogte right side of geometry
         sth_right_boundary = calc_regression(

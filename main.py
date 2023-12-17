@@ -54,6 +54,7 @@ class InputData(BaseModel):
         boundary_mode: BoundaryMode = BoundaryMode.PLTOP,
         polderlevel_mode: PolderLevelMode = PolderLevelMode.DITCH_BOTTOM,
     ) -> "InputData":
+        logfile = open(f"{PATH_OUTPUT_FILES}/input_parsing.log", 'w')
         result = InputData()
 
         # scenario info
@@ -99,8 +100,9 @@ class InputData(BaseModel):
                     )
                 )
             except Exception as e:
-                raise e
+                logfile.write(f"Skipping row {i} because of error {e}\n")
 
+        logfile.close()
         return result
 
 
