@@ -40,7 +40,7 @@ class BoundaryMode(IntEnum):
     """This enum is used to select the prefered boundary conditions
 
     PLTOP
-    1. the riverlevel is placed on the left side of the geometry, head=waterstand_bij_norm
+    1. the riverlevel is placed on the left side of the geometry, head=sth_intredepunt
     2. the polder level is placed at the line at sloot_1c and sloot_1d at the top of the aquifer, head=max_zp_wp
     3. the phreatic level is placed at sloot1c.x + an offset (DITCH_BOUNDARY_OFFSET in the settings) at the surface, head=sloot_1a.z
 
@@ -365,8 +365,9 @@ class Scenario(BaseModel):
 
         m.add_boundary_condition(
             points=points_river_level,
-            head_level=self.waterstand_bij_norm,
-            label="river level at norm",
+            #head_level=self.waterstand_bij_norm,
+            head_level=self.sth_intredepunt,
+            label="stijghoogte intredepunt",
         )
 
         if plot_file != "":
@@ -376,7 +377,7 @@ class Scenario(BaseModel):
             ax.text(
                 xs[0] - 2.0,
                 zs[0] + 0.5,
-                f"head = {self.waterstand_bij_norm}",
+                f"head = {self.sth_intredepunt:.2f}",
                 rotation=90,
                 color="b",
             )
