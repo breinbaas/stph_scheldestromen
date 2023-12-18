@@ -163,7 +163,7 @@ for k_zand in [6, 13]:
                     LIMIT_RIGHT, 
                     k_zand, 
                     anisotropy_factor, 
-                    f"{PATH_OUTPUT_FILES}/DEBUG_{scenario.name}_{k_zand:0.3f}_{anisotropy_factor}.png",
+                    f"{PATH_OUTPUT_FILES}/DEBUG_{scenario.name}.png",
                     error_message=f"{e}"
                 )
                 f_log = open(filename_log, "a+")

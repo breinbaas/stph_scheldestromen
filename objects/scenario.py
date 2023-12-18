@@ -41,7 +41,7 @@ class BoundaryMode(IntEnum):
 
     PLTOP
     1. the riverlevel is placed on the left side of the geometry, head=sth_intredepunt
-    2. the polder level is placed at the line at sloot_1c and sloot_1d at the top of the aquifer, head=max_zp_wp
+    2. the polder level is placed at the line at sloot_1c and sloot_1d at the top of the aquifer, head=gehanteerd polderpeil incl 0.3 regel voor opbarsten
     3. the phreatic level is placed at sloot1c.x + an offset (DITCH_BOUNDARY_OFFSET in the settings) at the surface, head=sloot_1a.z
 
 
@@ -91,6 +91,7 @@ class Scenario(BaseModel):
     soilprofile: SoilProfile
     slootnummer: str
     max_zp_wp: float
+    gehanteerd_polderpeil: float
     bovengrens_slootpeil: float
     ondergrens_slootpeil: float
     slootpeil: float
@@ -141,6 +142,7 @@ class Scenario(BaseModel):
             soilprofile=soilprofile,
             slootnummer=str(row["slootnummer"]),
             max_zp_wp=float(row["max_zp_wp_mnap"]),
+            gehanteerd_polderpeil=float(row["gehanteerd_polderpeil_mnap"]),
             bovengrens_slootpeil=float(row["bovengrens_slootpeil_mnap"]),
             ondergrens_slootpeil=float(row["ondergrens_slootpeil_mnap"]),
             slootpeil=float(row["slootpeil_mnap"]),
@@ -182,6 +184,7 @@ class Scenario(BaseModel):
         log.append("-" * 80)
         log.append(f"Waterstand bij norm: {self.waterstand_bij_norm}")
         log.append(f"Polderpeil: {self.max_zp_wp}")
+        log.append(f"Gehanteerd polderpeil: {self.gehanteerd_polderpeil}")
         log.append(f"Gekozen boundary mode: {BOUNDARY_MODE_NAMES[self.boundary_mode]}")
         log.append(
             f"Gekozen polderpeil mode: {POLDERLEVEL_MODE_NAMES[self.polderlevel_mode]}"
@@ -312,7 +315,8 @@ class Scenario(BaseModel):
 
             if layer == soillayer_for_pipe_settings:
                 # we need to add the points for the pipe settings
-                point_pipe_start = Point(x=sloot_1d.x, z=layer.top)
+                #point_pipe_start = Point(x=sloot_1d.x, z=layer.top)
+                point_pipe_start = Point(x=self.x_uittredepunt, z=layer.top)
                 point_pipe_end.z = layer.top
                 points.insert(1, point_pipe_start)
 
@@ -387,11 +391,12 @@ class Scenario(BaseModel):
 
         # use the 0.3d rule
         # polderpeil + 0.3 * (slootbodem - bovenzijde piping laag)
-        head_level_03d = self.max_zp_wp + 0.3 * (
-            sloot_1d.z - soillayer_for_pipe_settings.top
-        )
+        # we willen geen negatieve waarden
+        d_03 = max(sloot_1d.z - soillayer_for_pipe_settings.top, 0.0)
+
+        head_level_03d = self.gehanteerd_polderpeil + 0.3 * d_03
         log.append(
-            f"0.3d regel toegepast voor het potentiaal op de slootbodem {self.max_zp_wp:.2f}+0.3*({sloot_1d.z:.2f}-{soillayer_for_pipe_settings.top:.2f})={head_level_03d:.2f}"
+            f"0.3d regel toegepast voor het potentiaal op de slootbodem {self.gehanteerd_polderpeil:.2f}+0.3*({sloot_1d.z:.2f}-{soillayer_for_pipe_settings.top:.2f})={head_level_03d:.2f}"
         )
 
         # add the polder level boundary
