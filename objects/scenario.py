@@ -99,8 +99,8 @@ class Scenario(BaseModel):
     polderlevel_mode: PolderLevelMode = PolderLevelMode.DITCH_BOTTOM
     logfile: str = ""  # if set then this will be used to store the log information
 
-    x_uittredepunt: float = 0.0
-    dx_inuittredepunt: float = 0.0
+    x_intredepunt: float = 0.0
+    x_uittredepunt: float = 0.0    
     sth_intredepunt: float = 0.0
     sth_uittredepunt: float = 0.0
 
@@ -127,13 +127,8 @@ class Scenario(BaseModel):
         crosssection = Crosssection.from_points(points=dppoints)
         crosssection.mirror()
 
-        x_in = row['uittredepunt'] + row['kwelweglengte']
-        try:
-            crosssection.limit_left(x_in)
-            crosssection.limit_right(LIMIT_RIGHT)
-        except Exception as e:
-            print(f"Linker en rechter limiet instellen gaat niet goed bij {name}")
-
+        x_in = -1.0*float(row["intredepunt_for"]) # gespiegelde geometrie dus interedepunt * -1
+        crosssection.limit_left(x_in)
         crosssection.limit_right(LIMIT_RIGHT)
 
         result = Scenario(
@@ -150,8 +145,8 @@ class Scenario(BaseModel):
             ondergrens_slootpeil=float(row["ondergrens_slootpeil_mnap"]),
             slootpeil=float(row["slootpeil_mnap"]),
             waterstand_bij_norm=float(row["waterstand_bij_norm_mnap"]),
-            x_uittredepunt=float(row["uittredepunt"]),
-            dx_inuittredepunt=float(row["xintredepunt__x_uittredepunt"]),
+            x_intredepunt=-1*float(row["intredepunt_for"]),
+            x_uittredepunt=-1*float(row["uittredepunt_for"]),            
             sth_intredepunt=float(row["stijghoogte_intredepunt_mnap"]),
             sth_uittredepunt=float(
                 row["stijghoogte_uittredepunt_gebiedsschematisatie_mnap"]
@@ -194,21 +189,19 @@ class Scenario(BaseModel):
         log.append(
             f"Geometrie afkappen op / doortrekken tot {sloot_1a_offset}m van het sloot_1a punt"
         )
+        log.append(f"X intredepunt: {self.x_intredepunt:.2f}")
         log.append(f"Stijghoogte intredepunt: {self.sth_intredepunt:.2f}")
-        log.append(f"Stijghoogte uittredepunt: {self.sth_uittredepunt:.2f}")
+        log.append(f"Stijghoogte uittredepunt: {self.sth_uittredepunt:.2f}")        
         log.append(f"X uittredepunt: {self.x_uittredepunt:.2f}")
-        log.append(f"Afstand tussen in- en uittredepunt: {self.dx_inuittredepunt:.2f}")
-        #x_intredepunt = self.x_uittredepunt - self.dx_inuittredepunt
-        #log.append(f"X intredepunt: {x_intredepunt:.2f}")
-        #self.crosssection.limit_left(x_intredepunt)        
+
+        dx = self.x_uittredepunt - self.x_intredepunt
 
         # stijghoogte right side of geometry
         sth_right_boundary = calc_regression(
-            [0.1, self.dx_inuittredepunt],
+            [0.1, dx],
             [self.sth_intredepunt, self.sth_uittredepunt],
-            self.crosssection.right
-            - self.x_uittredepunt
-            + self.dx_inuittredepunt,  # distance right side geom to intredepunt
+            self.crosssection.right - self.x_intredepunt 
+            
         )[1]
         log.append(f"Stijghoogte aan rechterzijde geometry: {sth_right_boundary:.2f}")
 
@@ -387,7 +380,7 @@ class Scenario(BaseModel):
             ax.text(
                 xs[0] - 2.0,
                 zs[0] + 0.5,
-                f"head = {self.sth_intredepunt:.2f}",
+                f"x = {self.x_intredepunt:.2f}, head = {self.sth_intredepunt:.2f}",
                 rotation=90,
                 color="b",
             )
@@ -480,7 +473,7 @@ class Scenario(BaseModel):
                 ax.text(
                     x2 + 0.5,
                     zs[0] + 0.5,
-                    f"head = {sth_right_boundary:.3f}",
+                    f"x = {geometry_limit_right}, head = {sth_right_boundary:.3f}",
                     rotation=90,
                     color="b",
                 )

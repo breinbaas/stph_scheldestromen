@@ -1,7 +1,5 @@
 import pandas as pd
-import os
 from pathlib import Path
-from dotenv import load_dotenv
 from pydantic import BaseModel
 from typing import List
 import time
@@ -19,22 +17,15 @@ from objects.scenario import (
 )
 from settings import SLOOT_1A_OFFSET
 
-load_dotenv()
 
-# change the .env settings to choose
-# the correct path and input pickle (complete / relevant)
-PATH_INPUT_FILES = os.environ.get(
-    "PATH_INPUT_FILES"
-)  # the path to the pickle files read from .env
-PATH_OUTPUT_FILES = os.environ.get(
-    "PATH_OUTPUT_FILES"
-)  # the path for temporary output files
-TOETSING_PICKLE = os.environ.get(
-    "TOETSING_PICKLE"
-)  # the pickle file with scenarion info
-WBI_LOG_PICKLE = os.environ.get(
-    "WBI_LOG_PICKLE"
-)  # the pickle file with soil information
+# the path to the pickle files
+PATH_INPUT_FILES="C:\\Users\\brein\\Development\\stph_scheldestromen\\data\\input"
+# the path for temporary output files
+PATH_OUTPUT_FILES="C:\\Users\\brein\\Development\\stph_scheldestromen\\data\\output"
+# the pickle file with scenarion info
+TOETSING_PICKLE="wbi_log_toetsing_relevant.pkl"
+# the pickle file with soil information
+WBI_LOG_PICKLE="wbi_log.pkl"
 
 # bereken enkel de scenarios waar de dijkpaal hm groter is dan deze waarde
 DIJKPAAL_LIMIT_LEFT = 404
