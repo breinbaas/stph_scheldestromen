@@ -19,13 +19,13 @@ from settings import SLOOT_1A_OFFSET, LIMIT_RIGHT
 
 
 # the path to the pickle files
-PATH_INPUT_FILES="C:\\Users\\brein\\Development\\stph_scheldestromen\\data\\input"
+PATH_INPUT_FILES = "C:\\Users\\brein\\Development\\stph_scheldestromen\\data\\input"
 # the path for temporary output files
-PATH_OUTPUT_FILES="C:\\Users\\brein\\Development\\stph_scheldestromen\\data\\output"
+PATH_OUTPUT_FILES = "C:\\Users\\brein\\Development\\stph_scheldestromen\\data\\output"
 # the pickle file with scenarion info
-TOETSING_PICKLE="wbi_log_toetsing_relevant.pkl"
+TOETSING_PICKLE = "wbi_log_toetsing_relevant.pkl"
 # the pickle file with soil information
-WBI_LOG_PICKLE="wbi_log.pkl"
+WBI_LOG_PICKLE = "wbi_log.pkl"
 
 # bereken enkel de scenarios waar de dijkpaal hm groter is dan deze waarde
 DIJKPAAL_LIMIT_LEFT = 404
@@ -45,7 +45,7 @@ class InputData(BaseModel):
         boundary_mode: BoundaryMode = BoundaryMode.PLTOP,
         polderlevel_mode: PolderLevelMode = PolderLevelMode.DITCH_BOTTOM,
     ) -> "InputData":
-        logfile = open(f"{PATH_OUTPUT_FILES}/input_parsing.log", 'w')
+        logfile = open(f"{PATH_OUTPUT_FILES}/input_parsing.log", "w")
         result = InputData()
 
         # scenario info
@@ -130,11 +130,11 @@ for k_zand in [6, 13]:
         f_log.close()
         f_output.close()
         for scenario in inputdata.scenarios:
-            if (
-                scenario.dijkpaal < DIJKPAAL_LIMIT_LEFT
-                or scenario.dijkpaal > DIJKPAAL_LIMIT_RIGHT
-            ):
-                continue
+            # if (
+            #     scenario.dijkpaal < DIJKPAAL_LIMIT_LEFT
+            #     or scenario.dijkpaal > DIJKPAAL_LIMIT_RIGHT
+            # ):
+            #     continue
             try:
                 scenario.logfile = f"{PATH_OUTPUT_FILES}/{scenario.name}.{BOUNDARY_MODE_NAMES[boundary_mode]}_{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}_k{k_zand:0.3f}_a{anisotropy_factor}.log.txt"  # For debugging
                 dm = scenario.to_flat_dgeoflow_model(
@@ -158,15 +158,21 @@ for k_zand in [6, 13]:
                 scenario_names.append(scenario.name)
                 pipe_lengths.append(dm.output.PipeLength)
             except Exception as e:
-                # plot so we can see what might have gone wrong with this geometry
-                scenario.plot(
-                    LIMIT_RIGHT, 
-                    k_zand, 
-                    anisotropy_factor, 
-                    f"{PATH_OUTPUT_FILES}/DEBUG_{scenario.name}.png",
-                    error_message=f"{e}"
-                )
                 f_log = open(filename_log, "a+")
+                # plot so we can see what might have gone wrong with this geometry
+                try:
+                    scenario.plot(
+                        LIMIT_RIGHT,
+                        k_zand,
+                        anisotropy_factor,
+                        f"{PATH_OUTPUT_FILES}/DEBUG_{scenario.name}.png",
+                        error_message=f"{e}",
+                    )
+                except Exception as e_plot:
+                    f_log.write(
+                        f"Cannot save debug plot for '{scenario.name}', got error '{e_plot}'\n"
+                    )
+
                 f_log.write(
                     f"Cannot handle scenario '{scenario.name}', got error '{e}'\n"
                 )
