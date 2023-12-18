@@ -15,7 +15,7 @@ from objects.scenario import (
     BOUNDARY_MODE_NAMES,
     POLDERLEVEL_MODE_NAMES,
 )
-from settings import SLOOT_1A_OFFSET
+from settings import SLOOT_1A_OFFSET, LIMIT_RIGHT
 
 
 # the path to the pickle files
@@ -158,6 +158,14 @@ for k_zand in [6, 13]:
                 scenario_names.append(scenario.name)
                 pipe_lengths.append(dm.output.PipeLength)
             except Exception as e:
+                # plot so we can see what might have gone wrong with this geometry
+                scenario.plot(
+                    LIMIT_RIGHT, 
+                    k_zand, 
+                    anisotropy_factor, 
+                    f"{PATH_OUTPUT_FILES}/DEBUG_{scenario.name}_{k_zand:0.3f}_{anisotropy_factor}.png",
+                    error_message=f"{e}"
+                )
                 f_log = open(filename_log, "a+")
                 f_log.write(
                     f"Cannot handle scenario '{scenario.name}', got error '{e}'\n"

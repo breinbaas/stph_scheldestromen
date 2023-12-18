@@ -599,6 +599,7 @@ class Scenario(BaseModel):
         filename: str = "",
         width: float = 20.0,
         height: float = 12.0,
+        error_message: str = "",
     ):
         """Generate a plot of the model
 
@@ -679,6 +680,10 @@ class Scenario(BaseModel):
                 get_name_from_point_type(point.point_type),
                 rotation=90,
             )
+
+
+        if error_message != "":
+            ax.text(self.crosssection.left + 2.0, self.crosssection.top + 8.0, error_message)
 
         ax.set_ylim(self.soilprofile.bottom, self.crosssection.top + 10.0)
 
