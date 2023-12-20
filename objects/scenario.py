@@ -101,7 +101,7 @@ class Scenario(BaseModel):
     logfile: str = ""  # if set then this will be used to store the log information
 
     x_intredepunt: float = 0.0
-    x_uittredepunt: float = 0.0    
+    x_uittredepunt: float = 0.0
     sth_intredepunt: float = 0.0
     sth_uittredepunt: float = 0.0
 
@@ -128,7 +128,9 @@ class Scenario(BaseModel):
         crosssection = Crosssection.from_points(points=dppoints)
         crosssection.mirror()
 
-        x_in = -1.0*float(row["intredepunt_for"]) # gespiegelde geometrie dus interedepunt * -1
+        x_in = -1.0 * float(
+            row["intredepunt_for"]
+        )  # gespiegelde geometrie dus interedepunt * -1
         crosssection.limit_left(x_in)
         crosssection.limit_right(LIMIT_RIGHT)
 
@@ -147,12 +149,10 @@ class Scenario(BaseModel):
             ondergrens_slootpeil=float(row["ondergrens_slootpeil_mnap"]),
             slootpeil=float(row["slootpeil_mnap"]),
             waterstand_bij_norm=float(row["waterstand_bij_norm_mnap"]),
-            x_intredepunt=-1*float(row["intredepunt_for"]),
-            x_uittredepunt=-1*float(row["uittredepunt_for"]),            
+            x_intredepunt=-1 * float(row["intredepunt_for"]),
+            x_uittredepunt=-1 * float(row["uittredepunt_for"]),
             sth_intredepunt=float(row["stijghoogte_intredepunt_mnap"]),
-            sth_uittredepunt=float(
-                row["stijghoogte_uittredepunt_gebiedsschematisatie_mnap"]
-            ),
+            sth_uittredepunt=float(row["stijghoogte_uittredepunt_mnap"]),
         )
 
         return result
@@ -166,6 +166,7 @@ class Scenario(BaseModel):
         sloot_1a_offset: float,
         k_zand: float,
         anisotropy_factor: int = 2,
+        sealevel_rise_offset: float = 0.0,
         plot_file: str = "",
     ) -> DGeoFlowModel:
         """Convert the scenario to a DGeoFlow model where we limit the top of the geometry at the uittredepunt
@@ -193,20 +194,43 @@ class Scenario(BaseModel):
             f"Geometrie afkappen op / doortrekken tot {sloot_1a_offset}m van het sloot_1a punt"
         )
         log.append(f"X intredepunt: {self.x_intredepunt:.2f}")
-        log.append(f"Stijghoogte intredepunt: {self.sth_intredepunt:.2f}")
-        log.append(f"Stijghoogte uittredepunt: {self.sth_uittredepunt:.2f}")        
+
+        # Linker limiet is gelijk aan x intredepunt dus we kunnen
+        # nu de stijghoogte voor de linkerzijde definieren
+        head_left_boundary = self.sth_intredepunt
+
+        log.append(f"Stijghoogte intredepunt: {head_left_boundary:.2f}")
+        if sealevel_rise_offset != 0.0:
+            head_left_boundary += sealevel_rise_offset
+            log.append(
+                f"Extra opzet t.g.v. zeespiegel stijging: {sealevel_rise_offset:.2f}"
+            )
+            log.append(
+                f"Stijghoogte intredepunt met zeespiegelstijging: {head_left_boundary:.2f}"
+            )
+
+        head_uittredepunt = self.sth_uittredepunt
+        log.append(f"Stijghoogte uittredepunt: {head_uittredepunt:.2f}")
+        if sealevel_rise_offset != 0.0:
+            head_uittredepunt += sealevel_rise_offset
+            log.append(
+                f"Extra opzet t.g.v. zeespiegel stijging: {sealevel_rise_offset:.2f}"
+            )
+            log.append(
+                f"Stijghoogte uittredepunt met zeespiegelstijging: {head_uittredepunt:.2f}"
+            )
         log.append(f"X uittredepunt: {self.x_uittredepunt:.2f}")
 
         dx = self.x_uittredepunt - self.x_intredepunt
 
         # stijghoogte right side of geometry
-        sth_right_boundary = calc_regression(
+        head_right_boundary = calc_regression(
             [0.1, dx],
-            [self.sth_intredepunt, self.sth_uittredepunt],
-            self.crosssection.right - self.x_intredepunt 
-            
+            [head_left_boundary, head_uittredepunt],
+            self.crosssection.right - self.x_intredepunt,
         )[1]
-        log.append(f"Stijghoogte aan rechterzijde geometry: {sth_right_boundary:.2f}")
+
+        log.append(f"Stijghoogte aan rechterzijde geometry: {head_right_boundary:.2f}")
 
         log.append("-" * 80)
         log.append("Grondlagen:")
@@ -277,6 +301,13 @@ class Scenario(BaseModel):
                 f"No ditch found, point sloot_1c and sloot_1a share the same x coordinate."
             )
 
+        # check if the layer with the aquifer lies above the ditch bottom, if so we break off the calculation
+        # because we cannot handle this situation yet
+        if sloot_1d.z < self.soilprofile.aquifer.bottom:
+            raise ValueError(
+                f"The ditch bottom ({sloot_1d.z:.2f}m tov NAP) lies below the aquifer bottom ({self.soilprofile.aquifer.bottom:.2f}m tov NAP), this situation is not handled yet."
+            )
+
         # cut off / lengthen the geometry at the given value
         geometry_limit_right = sloot_1a.x + sloot_1a_offset
 
@@ -315,7 +346,7 @@ class Scenario(BaseModel):
 
             if layer == soillayer_for_pipe_settings:
                 # we need to add the points for the pipe settings
-                #point_pipe_start = Point(x=sloot_1d.x, z=layer.top)
+                # point_pipe_start = Point(x=sloot_1d.x, z=layer.top)
                 point_pipe_start = Point(x=self.x_uittredepunt, z=layer.top)
                 point_pipe_end.z = layer.top
                 points.insert(1, point_pipe_start)
@@ -365,15 +396,14 @@ class Scenario(BaseModel):
             m.add_meshproperties(element_size=mesh_size, layer_id=layer_id)
             log.append(f"Mesh size voor laag {layer.short_name}: {mesh_size:.2f}")
 
-        # add the river level boundary
+        # add the river level boundary (left side of the geometry)
         points_river_level = []
         for z in self.soilprofile.get_soillayer_z_coordinates():
             points_river_level.append(Point(x=self.crosssection.left, z=z))
 
         m.add_boundary_condition(
             points=points_river_level,
-            #head_level=self.waterstand_bij_norm,
-            head_level=self.sth_intredepunt,
+            head_level=head_left_boundary,
             label="stijghoogte intredepunt",
         )
 
@@ -384,25 +414,47 @@ class Scenario(BaseModel):
             ax.text(
                 xs[0] - 2.0,
                 zs[0] + 0.5,
-                f"x = {self.x_intredepunt:.2f}, head = {self.sth_intredepunt:.2f}",
+                f"x = {self.x_intredepunt:.2f}, head = {head_left_boundary:.2f}",
                 rotation=90,
                 color="b",
             )
 
-        # use the 0.3d rule
+        # check if we need to use the 0.3d rule
         # polderpeil + 0.3 * (slootbodem - bovenzijde piping laag)
         # we willen geen negatieve waarden
         d_03 = max(sloot_1d.z - soillayer_for_pipe_settings.top, 0.0)
 
+        # head level according to 0.3d rule
         head_level_03d = self.gehanteerd_polderpeil + 0.3 * d_03
-        log.append(
-            f"0.3d regel toegepast voor het potentiaal op de slootbodem {self.gehanteerd_polderpeil:.2f}+0.3*({sloot_1d.z:.2f}-{soillayer_for_pipe_settings.top:.2f})={head_level_03d:.2f}"
-        )
+        # # head level based on the inter/extrapolation method
+        # the next part is not realistic so skipped
+        # head_level_pp_start = calc_regression(
+        #     [0.1, dx],
+        #     [
+        #         self.sth_intredepunt + sealevel_rise_offset,
+        #         self.sth_uittredepunt + sealevel_rise_offset,
+        #     ],
+        #     self.crosssection.right - boundary_pp_start.x,
+        # )[1]
+
+        msg_03d = ""  # needed for the plot text if the 0.3d rule is applied or not
+        if d_03 > 0:
+            msg_03d = "(0.3d rule applied) "
+            head_level_pp_start = head_level_03d
+            log.append(
+                f"0.3d regel toegepast voor het potentiaal op de slootbodem {self.gehanteerd_polderpeil:.2f}+0.3*({sloot_1d.z:.2f}-{soillayer_for_pipe_settings.top:.2f})={head_level_03d:.2f}"
+            )
+        else:
+            # TODO wat passen we hier toe?
+            head_level_pp_start = self.gehanteerd_polderpeil
+            log.append(
+                f"WARNING Geen 0.3d regel toegepast, head level gelijk gesteld aan gehanteerd polderpeil, dit is nog niet correct!"
+            )
 
         # add the polder level boundary
         m.add_boundary_condition(
             points=[boundary_pp_start, boundary_pp_end],
-            head_level=head_level_03d,
+            head_level=head_level_pp_start,
             label="polder level",
         )
 
@@ -416,7 +468,7 @@ class Scenario(BaseModel):
             ax.text(
                 boundary_pp_start.x,
                 boundary_pp_start.z + 0.5,
-                f"head (with 0.3d rule) = {head_level_03d:.2f}",
+                f"head {msg_03d}= {head_level_pp_start:.2f}",
                 rotation=90,
                 color="b",
             )
@@ -453,11 +505,11 @@ class Scenario(BaseModel):
         else:
             m.add_boundary_condition(
                 points=boundary_pl_points,
-                head_level=sth_right_boundary,
+                head_level=head_right_boundary,
                 label="phreatic level",
             )
             log.append(
-                f"De head voor de pl lijn ligt op {sth_right_boundary:.1f}m en is berekend via extrapolatie op de stijghoogte van de in- en uittredepunten."
+                f"De head voor de pl lijn ligt op {head_right_boundary:.1f}m en is berekend via extrapolatie op de stijghoogte van de in- en uittredepunten."
             )
 
         if plot_file != "":
@@ -478,7 +530,7 @@ class Scenario(BaseModel):
                 ax.text(
                     x2 + 0.5,
                     zs[0] + 0.5,
-                    f"x = {geometry_limit_right}, head = {sth_right_boundary:.3f}",
+                    f"x = {geometry_limit_right}, head = {head_right_boundary:.3f}",
                     rotation=90,
                     color="b",
                 )
@@ -686,9 +738,10 @@ class Scenario(BaseModel):
                 rotation=90,
             )
 
-
         if error_message != "":
-            ax.text(self.crosssection.left + 2.0, self.crosssection.top + 8.0, error_message)
+            ax.text(
+                self.crosssection.left + 2.0, self.crosssection.top + 8.0, error_message
+            )
 
         ax.set_ylim(self.soilprofile.bottom, self.crosssection.top + 10.0)
 

@@ -19,9 +19,9 @@ from settings import SLOOT_1A_OFFSET, LIMIT_RIGHT
 
 
 # the path to the pickle files
-PATH_INPUT_FILES = "C:\\Users\\brein\\Development\\stph_scheldestromen\\data\\input"
+PATH_INPUT_FILES = "D:\\Documents\\Development\\Python\\scheldestromen\\data\\input"
 # the path for temporary output files
-PATH_OUTPUT_FILES = "C:\\Users\\brein\\Development\\stph_scheldestromen\\data\\output"
+PATH_OUTPUT_FILES = "D:\\Documents\\Development\\Python\\scheldestromen\\data\\output"
 # the pickle file with scenarion info
 TOETSING_PICKLE = "wbi_log_toetsing_relevant.pkl"
 # the pickle file with soil information
@@ -31,6 +31,9 @@ WBI_LOG_PICKLE = "wbi_log.pkl"
 DIJKPAAL_LIMIT_LEFT = 404
 # bereken enkel de scenarios waar de dijkpaal hm kleiner is dan deze waarde
 DIJKPAAL_LIMIT_RIGHT = 490
+
+# mogelijke extra opzet t.g.v. zeespiegelstijging, deze wordt 1 op 1 doorgegeven aan de linker en rechter rand boundaries
+SEA_LEVEL_RISE_OFFSET = 0.5
 
 
 class InputData(BaseModel):
@@ -130,6 +133,7 @@ for k_zand in [6, 13]:
         f_log.close()
         f_output.close()
         for scenario in inputdata.scenarios:
+            # enable code to allow filtering by dijkpaal
             # if (
             #     scenario.dijkpaal < DIJKPAAL_LIMIT_LEFT
             #     or scenario.dijkpaal > DIJKPAAL_LIMIT_RIGHT
@@ -142,6 +146,7 @@ for k_zand in [6, 13]:
                     plot_file=f"{PATH_OUTPUT_FILES}/{scenario.name}.{BOUNDARY_MODE_NAMES[boundary_mode]}_{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}_k{k_zand:0.3f}_a{anisotropy_factor}.png",
                     k_zand=k_zand,
                     anisotropy_factor=anisotropy_factor,
+                    sealevel_rise_offset=SEA_LEVEL_RISE_OFFSET,
                 )
                 dm.serialize(
                     Path(PATH_OUTPUT_FILES)
