@@ -17,6 +17,9 @@ from geolib.models.dgeoflow.internal import (
 from geolib.models.dgeoflow.internal import CalculationTypeEnum
 from copy import deepcopy
 from enum import IntEnum
+from typing import Tuple, List
+
+from objects.soillayer import SoilLayer
 
 from objects.crosssection import Crosssection, CrosssectionPoint, CrosssectionPointType
 from objects.soilprofile import SoilProfile
@@ -32,8 +35,15 @@ from settings import (
     SOILS_WITH_K_ZAND,
     RIGHT_SIDE_BOUNDARY_OFFSET,
     PIPE_MESH_SIZE,
+    SLOOT_1A_OFFSET,
 )
 from helpers import get_name_from_point_type, get_soil_parameters, calc_regression
+
+
+class SoilPolygon:
+    def __init__(self, points: List[Tuple[float, float]], soillayer: SoilLayer):
+        self.polygon = Polygon(points)
+        self.soillayer = soillayer
 
 
 class BoundaryMode(IntEnum):
@@ -583,17 +593,18 @@ class Scenario(BaseModel):
 
         return m
 
-    def to_dgeoflow_model(self) -> DGeoFlowModel:
+    def to_dgeoflow_model(
+        self,
+    ) -> DGeoFlowModel:
         """not implemented
 
         the idea is to generate the complete levee model instead of cutting
         of the geometry at the ditch bottom. Part of the code is done but
         so far we decided to go with the simple model
         """
-        raise NotImplementedError
         m = DGeoFlowModel()
 
-        # soiltypes
+        # VOEG GRONDSOORTEN TOE
         for code, params in SOILPARAMETERS.items():
             m.add_soil(
                 Soil(
@@ -607,44 +618,132 @@ class Scenario(BaseModel):
                 )
             )
 
-        # create a polygon from the crosssection
-        crs_pts = [(p.x, p.z) for p in self.crosssection.points]
-        crs_pts.append([self.crosssection.right, self.soilprofile.bottom])
-        crs_pts.append([self.crosssection.left, self.soilprofile.bottom])
+        # LINKER LIMIET VAN HET MODEL
+        left_limit = self.x_intredepunt
 
-        pg_crosssection = Polygon(crs_pts)
+        # RECHTER LIMIET VAN HET MODEL
+        sloot_1a = self.crosssection.get_point_by_point_type(
+            CrosssectionPointType.SLOOT_1A
+        )
+        if sloot_1a is None:
+            raise ValueError(
+                f"Geen punt gevonden voor bovenzijde sloot aan de polderzijde. Deze is nodig om de rechtergrens van de geometrie te bepalen."
+            )
 
+        right_limit = sloot_1a.x + SLOOT_1A_OFFSET
+
+        # BEPERK HET DWARSPROFIEL TOT DEZE LIMIETEN
+        self.crosssection.limit_left(left_limit)
+        self.crosssection.limit_right(right_limit)
+
+        # CREEER DE GRONDLAGEN
+        # add all soilayers
+        soil_polygons = []
         for layer in self.soilprofile.soillayers:
-            # create the rectangle
-            x1 = self.crosssection.left
-            x2 = self.crosssection.right
-            z1 = layer.top
-            z2 = layer.bottom
+            points = (
+                (left_limit, layer.top),
+                (right_limit, layer.top),
+                (right_limit, layer.bottom),
+                (left_limit, layer.bottom),
+            )
+            soil_polygons.append(SoilPolygon(points, layer))
 
-            # create a shapely polygon out of this
-            pg_layer = Polygon([(x1, z1), (x2, z1), (x2, z2), (x1, z2)])
+        # create the polygon of the crosssection
+        points = [(p.x, p.z) for p in self.crosssection.points] + [
+            (right_limit, self.soilprofile.bottom),
+            (left_limit, self.soilprofile.bottom),
+        ]
+        crs_polygon = Polygon(points)
 
-            intersections = pg_layer.intersection(pg_crosssection)
+        # subtract the crosssection polygon from the other layers
+        final_polygons = []
+        for spg in soil_polygons:
+            newpgs = spg.polygon.intersection(crs_polygon)
 
-            polygons = []
-
-            if type(intersections) == Polygon:
-                polygons = [intersections]
-            elif type(intersections) == MultiPolygon:
-                polygons = list(intersections.geoms)
-            else:
+            if not type(newpgs) in [Polygon, MultiPolygon]:
                 raise ValueError(
-                    f"Unhandled intersectsion type '{type(intersections)}'"
+                    f"Unexpected polygon shape '{type(newpgs)}' during the creation of the geometry."
                 )
 
-            for pg in polygons:
-                if not pg.is_empty:
-                    if is_ccw(pg):  # check if clockwise
-                        pg = pg.reverse()
-                    points = [Point(x=p[0], z=p[1]) for p in pg.boundary.coords][:-1]
-                    m.add_layer(
-                        points=points, soil_code=layer.short_name, label=layer.soil_name
-                    )
+            if type(newpgs) == Polygon:
+                geoms = [newpgs]
+            else:
+                geoms = newpgs.geoms
+
+            for geom in geoms:
+                if geom.is_empty:
+                    if is_ccw(geom):
+                        geom = geom.reverse()
+                points = [Point(x=p[0], z=p[1]) for p in geom.boundary.coords][:-1]
+                m.add_layer(
+                    points=points,
+                    soil_code=spg.soillayer.short_name,
+                    label=spg.soillayer.soil_name,
+                )
+
+        # STIJGHOOGTE INTREDEPUNT
+        points_phi_ws = [
+            Point(x=self.crosssection.left, z=z)
+            for z in self.soilprofile.get_sth_intredepunt_zs()
+        ]
+
+        m.add_boundary_condition(
+            points=points_phi_ws,
+            head_level=self.sth_intredepunt,
+            label="phi_ws",
+        )
+
+        # STIJGHOOGTE RECHTER RAND GEOMETRIE
+        # TODO > gaat niet goed, rechterkant kan lager zijn dan aquifer laag bovenzijde
+        points_phi_hinter = [
+            Point(x=self.crosssection.right, z=z)
+            for z in self.soilprofile.get_sth_intredepunt_zs()[::-1]
+        ]
+
+        m.add_boundary_condition(
+            points=points_phi_hinter,
+            head_level=self.sth_intredepunt,
+            label="phi_hinter",
+        )
+
+        # # create a polygon from the crosssection
+        # crs_pts = [(p.x, p.z) for p in self.crosssection.points]
+        # crs_pts.append([self.crosssection.right, self.soilprofile.bottom])
+        # crs_pts.append([self.crosssection.left, self.soilprofile.bottom])
+
+        # pg_crosssection = Polygon(crs_pts)
+
+        # for layer in self.soilprofile.soillayers:
+        #     # create the rectangle
+        #     x1 = self.crosssection.left
+        #     x2 = self.crosssection.right
+        #     z1 = layer.top
+        #     z2 = layer.bottom
+
+        #     # create a shapely polygon out of this
+        #     pg_layer = Polygon([(x1, z1), (x2, z1), (x2, z2), (x1, z2)])
+
+        #     intersections = pg_layer.intersection(pg_crosssection)
+
+        #     soil_polygons = []
+
+        #     if type(intersections) == Polygon:
+        #         soil_polygons = [intersections]
+        #     elif type(intersections) == MultiPolygon:
+        #         soil_polygons = list(intersections.geoms)
+        #     else:
+        #         raise ValueError(
+        #             f"Unhandled intersectsion type '{type(intersections)}'"
+        #         )
+
+        #     for pg in soil_polygons:
+        #         if not pg.is_empty:
+        #             if is_ccw(pg):  # check if clockwise
+        #                 pg = pg.reverse()
+        #             points = [Point(x=p[0], z=p[1]) for p in pg.boundary.coords][:-1]
+        #             m.add_layer(
+        #                 points=points, soil_code=layer.short_name, label=layer.soil_name
+        #             )
 
         return m
 

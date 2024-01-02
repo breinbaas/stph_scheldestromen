@@ -15,7 +15,7 @@ from objects.scenario import (
     BOUNDARY_MODE_NAMES,
     POLDERLEVEL_MODE_NAMES,
 )
-from settings import SLOOT_1A_OFFSET, LIMIT_RIGHT
+from settings import *
 
 
 # the path to the pickle files
@@ -26,14 +26,6 @@ PATH_OUTPUT_FILES = "D:\\Documents\\Development\\Python\\scheldestromen\\data\\o
 TOETSING_PICKLE = "wbi_log_toetsing_relevant.pkl"
 # the pickle file with soil information
 WBI_LOG_PICKLE = "wbi_log.pkl"
-
-# bereken enkel de scenarios waar de dijkpaal hm groter is dan deze waarde
-DIJKPAAL_LIMIT_LEFT = 404
-# bereken enkel de scenarios waar de dijkpaal hm kleiner is dan deze waarde
-DIJKPAAL_LIMIT_RIGHT = 490
-
-# mogelijke extra opzet t.g.v. zeespiegelstijging, deze wordt 1 op 1 doorgegeven aan de linker en rechter rand boundaries
-SEA_LEVEL_RISE_OFFSET = 0.5
 
 
 class InputData(BaseModel):
@@ -115,88 +107,98 @@ inputdata = InputData.from_pickle(
     polderlevel_mode=polderlevel_mode,
 )
 
-fig = Figure(figsize=(10, 6))
-ax = fig.add_subplot()
-for k_zand in [6, 13]:
-    for anisotropy_factor in [2, 10]:
-        scenario_names = []
-        pipe_lengths = []
+# debug beperkt zich tot dp 467 en 314
+if DEBUG:
+    inputdata.scenarios = [i for i in inputdata.scenarios if i.dijkpaal in [467, 314]]
 
-        filename_log = f"{PATH_OUTPUT_FILES}/log_{BOUNDARY_MODE_NAMES[boundary_mode]}_{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}_k{k_zand:0.3f}_a{anisotropy_factor}.txt"
-        f_log = open(filename_log, "w")
+for scenario in inputdata.scenarios:
+    dm = scenario.to_dgeoflow_model()
 
-        filename_output = f"{PATH_OUTPUT_FILES}/result_{BOUNDARY_MODE_NAMES[boundary_mode]}_{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}_k{k_zand:0.3f}_a{anisotropy_factor}.csv"
-        f_output = open(filename_output, "w")
-        f_output.write(
-            "scenario [-],boundary_mode [-],polderlevel_mode [-],k_zand [m/day],calculation_time [s],pipe_length [m]\n"
-        )
-        f_log.close()
-        f_output.close()
-        for scenario in inputdata.scenarios:
-            # enable code to allow filtering by dijkpaal
-            # if (
-            #     scenario.dijkpaal < DIJKPAAL_LIMIT_LEFT
-            #     or scenario.dijkpaal > DIJKPAAL_LIMIT_RIGHT
-            # ):
-            #     continue
-            try:
-                scenario.logfile = f"{PATH_OUTPUT_FILES}/{scenario.name}.{BOUNDARY_MODE_NAMES[boundary_mode]}_{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}_k{k_zand:0.3f}_a{anisotropy_factor}.log.txt"  # For debugging
-                dm = scenario.to_flat_dgeoflow_model(
-                    sloot_1a_offset=SLOOT_1A_OFFSET,
-                    plot_file=f"{PATH_OUTPUT_FILES}/{scenario.name}.{BOUNDARY_MODE_NAMES[boundary_mode]}_{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}_k{k_zand:0.3f}_a{anisotropy_factor}.png",
-                    k_zand=k_zand,
-                    anisotropy_factor=anisotropy_factor,
-                    sealevel_rise_offset=SEA_LEVEL_RISE_OFFSET,
-                )
-                dm.serialize(
-                    Path(PATH_OUTPUT_FILES)
-                    / f"{scenario.name}.{BOUNDARY_MODE_NAMES[boundary_mode]}_{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}_k{k_zand:0.3f}_a{anisotropy_factor}.flat.flox"
-                )
-                start_time = time.time()
-                dm.execute()
-                f_output = open(filename_output, "a+")
-                f_output.write(
-                    f"{scenario.name},{BOUNDARY_MODE_NAMES[boundary_mode]},{POLDERLEVEL_MODE_NAMES[polderlevel_mode]},{k_zand:0.3f},{(time.time() - start_time):.0f},{dm.output.PipeLength:.2f}\n"
-                )
-                f_output.close()
+    dm.serialize(Path(PATH_OUTPUT_FILES) / f"{scenario.name}.flox")
 
-                scenario_names.append(scenario.name)
-                pipe_lengths.append(dm.output.PipeLength)
-            except Exception as e:
-                f_log = open(filename_log, "a+")
-                # plot so we can see what might have gone wrong with this geometry
-                try:
-                    scenario.plot(
-                        LIMIT_RIGHT,
-                        k_zand,
-                        anisotropy_factor,
-                        f"{PATH_OUTPUT_FILES}/DEBUG_{scenario.name}.png",
-                        error_message=f"{e}",
-                    )
-                except Exception as e_plot:
-                    f_log.write(
-                        f"Cannot save debug plot for '{scenario.name}', got error '{e_plot}'\n"
-                    )
 
-                f_log.write(
-                    f"Cannot handle scenario '{scenario.name}', got error '{e}'\n"
-                )
-                f_log.close()
+# fig = Figure(figsize=(10, 6))
+# ax = fig.add_subplot()
+# for k_zand in [6, 13]:
+#     for anisotropy_factor in [2, 10]:
+#         scenario_names = []
+#         pipe_lengths = []
 
-        # NOTE this is hard coded so if you change the k_zand or anisotropy settings you might want to adjust the next code
-        c = "r" if k_zand == 13 else "b"
-        ls = "-" if anisotropy_factor == 13 else "--"
+#         filename_log = f"{PATH_OUTPUT_FILES}/log_{BOUNDARY_MODE_NAMES[boundary_mode]}_{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}_k{k_zand:0.3f}_a{anisotropy_factor}.txt"
+#         f_log = open(filename_log, "w")
 
-        ax.plot(
-            scenario_names,
-            pipe_lengths,
-            label=f"k:{k_zand} a:{anisotropy_factor}",
-            c=c,
-            ls=ls,
-        )
+#         filename_output = f"{PATH_OUTPUT_FILES}/result_{BOUNDARY_MODE_NAMES[boundary_mode]}_{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}_k{k_zand:0.3f}_a{anisotropy_factor}.csv"
+#         f_output = open(filename_output, "w")
+#         f_output.write(
+#             "scenario [-],boundary_mode [-],polderlevel_mode [-],k_zand [m/day],calculation_time [s],pipe_length [m]\n"
+#         )
+#         f_log.close()
+#         f_output.close()
+#         for scenario in inputdata.scenarios:
+#             # enable code to allow filtering by dijkpaal
+#             # if (
+#             #     scenario.dijkpaal < DIJKPAAL_LIMIT_LEFT
+#             #     or scenario.dijkpaal > DIJKPAAL_LIMIT_RIGHT
+#             # ):
+#             #     continue
+#             try:
+#                 scenario.logfile = f"{PATH_OUTPUT_FILES}/{scenario.name}.{BOUNDARY_MODE_NAMES[boundary_mode]}_{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}_k{k_zand:0.3f}_a{anisotropy_factor}.log.txt"  # For debugging
+#                 dm = scenario.to_flat_dgeoflow_model(
+#                     sloot_1a_offset=SLOOT_1A_OFFSET,
+#                     plot_file=f"{PATH_OUTPUT_FILES}/{scenario.name}.{BOUNDARY_MODE_NAMES[boundary_mode]}_{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}_k{k_zand:0.3f}_a{anisotropy_factor}.png",
+#                     k_zand=k_zand,
+#                     anisotropy_factor=anisotropy_factor,
+#                     sealevel_rise_offset=SEA_LEVEL_RISE_OFFSET,
+#                 )
+#                 dm.serialize(
+#                     Path(PATH_OUTPUT_FILES)
+#                     / f"{scenario.name}.{BOUNDARY_MODE_NAMES[boundary_mode]}_{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}_k{k_zand:0.3f}_a{anisotropy_factor}.flat.flox"
+#                 )
+#                 start_time = time.time()
+#                 dm.execute()
+#                 f_output = open(filename_output, "a+")
+#                 f_output.write(
+#                     f"{scenario.name},{BOUNDARY_MODE_NAMES[boundary_mode]},{POLDERLEVEL_MODE_NAMES[polderlevel_mode]},{k_zand:0.3f},{(time.time() - start_time):.0f},{dm.output.PipeLength:.2f}\n"
+#                 )
+#                 f_output.close()
 
-ax.grid(True)
-ax.legend()
-ax.set_title("Berekeningen ronde 4")
+#                 scenario_names.append(scenario.name)
+#                 pipe_lengths.append(dm.output.PipeLength)
+#             except Exception as e:
+#                 f_log = open(filename_log, "a+")
+#                 # plot so we can see what might have gone wrong with this geometry
+#                 try:
+#                     scenario.plot(
+#                         LIMIT_RIGHT,
+#                         k_zand,
+#                         anisotropy_factor,
+#                         f"{PATH_OUTPUT_FILES}/DEBUG_{scenario.name}.png",
+#                         error_message=f"{e}",
+#                     )
+#                 except Exception as e_plot:
+#                     f_log.write(
+#                         f"Cannot save debug plot for '{scenario.name}', got error '{e_plot}'\n"
+#                     )
 
-fig.savefig(f"{PATH_OUTPUT_FILES}/result.png")
+#                 f_log.write(
+#                     f"Cannot handle scenario '{scenario.name}', got error '{e}'\n"
+#                 )
+#                 f_log.close()
+
+#         # NOTE this is hard coded so if you change the k_zand or anisotropy settings you might want to adjust the next code
+#         c = "r" if k_zand == 13 else "b"
+#         ls = "-" if anisotropy_factor == 13 else "--"
+
+#         ax.plot(
+#             scenario_names,
+#             pipe_lengths,
+#             label=f"k:{k_zand} a:{anisotropy_factor}",
+#             c=c,
+#             ls=ls,
+#         )
+
+# ax.grid(True)
+# ax.legend()
+# ax.set_title("Berekeningen ronde 4")
+
+# fig.savefig(f"{PATH_OUTPUT_FILES}/result.png")

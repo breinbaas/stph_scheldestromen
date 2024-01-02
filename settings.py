@@ -1,5 +1,19 @@
 from objects.crosssection import CrosssectionPointType
 
+# als debug == True dan gebruiken we enkel dp 467 en 314 als test
+DEBUG = True
+
+# mogelijke extra opzet t.g.v. zeespiegelstijging, deze wordt 1 op 1 doorgegeven aan de linker en rechter rand boundaries
+SEA_LEVEL_RISE_OFFSET = 0.5
+
+# default waarden voor getijdenzand en pleistoceen
+K_GETIJDEZAND = 6
+K_PLEISTOCEEN = 13
+
+# dijkpalen waartussen getijdenzand moet worden aangenomen voor aquifer
+# let op pleistoceen heeft altijd K_PLEISTOCEEN
+GETIJDEZAND_TUSSEN_DIJKPALEN = [(292, 484), (512, 519)]
+
 BOTTOM_OFFSET = 10.0  # if we have no bottom on the soilprofile we use the top of the deepest layer minus this offset
 LIMIT_LEFT = -50.0  # limit the crosssection to the given value on the left side
 LIMIT_RIGHT = 100.0  # limit the crosssection to the given value on the right side
