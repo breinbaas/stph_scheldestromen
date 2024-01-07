@@ -19,9 +19,13 @@ from settings import *
 
 
 # the path to the pickle files
-PATH_INPUT_FILES = "D:\\Documents\\Development\\Python\\scheldestromen\\data\\input"
+PATH_INPUT_FILES = (
+    "C:\\Users\\brein\\Documents\\Klanten\\Scheldestromen\\ZakVanBeveland\\input"
+)
 # the path for temporary output files
-PATH_OUTPUT_FILES = "D:\\Documents\\Development\\Python\\scheldestromen\\data\\output"
+PATH_OUTPUT_FILES = (
+    "C:\\Users\\brein\\Documents\\Klanten\\Scheldestromen\\ZakVanBeveland\\output"
+)
 # the pickle file with scenarion info
 TOETSING_PICKLE = "wbi_log_toetsing_relevant.pkl"
 # the pickle file with soil information
@@ -37,8 +41,8 @@ class InputData(BaseModel):
         pickle_path,
         pickle_file,
         dsoil_pickle_file,
-        boundary_mode: BoundaryMode = BoundaryMode.PLTOP,
-        polderlevel_mode: PolderLevelMode = PolderLevelMode.DITCH_BOTTOM,
+        # boundary_mode: BoundaryMode = BoundaryMode.PLTOP,
+        # polderlevel_mode: PolderLevelMode = PolderLevelMode.DITCH_BOTTOM,
     ) -> "InputData":
         logfile = open(f"{PATH_OUTPUT_FILES}/input_parsing.log", "w")
         result = InputData()
@@ -81,30 +85,27 @@ class InputData(BaseModel):
                         i,
                         row,
                         soilprofile,
-                        boundary_mode=boundary_mode,
-                        polderlevel_mode=polderlevel_mode,
                     )
                 )
             except Exception as e:
-                logfile.write(f"Skipping row {i} because of error {e}\n")
+                logfile.write(f"Skipping row {i} because of error {e}\\n")
 
         logfile.close()
         return result
 
 
 # choices, choices...
-boundary_mode = BoundaryMode.PLRIGHT
-polderlevel_mode = PolderLevelMode.FIRST_LAYER_BOTTOM
-# k_zand = 6  # m/day
-# anisotropy_factor = 2  # H:V (V=H/anisotropy_factor)
-
+# boundary_mode = BoundaryMode.PLRIGHT
+# polderlevel_mode = PolderLevelMode.FIRST_LAYER_BOTTOM
+k_sand = 6  # m/day
+anisotropy_factor = 2  # H:V (V=H/anisotropy_factor)
+sealevel_rise = 0.0
+use_surface_boundary = True
 
 inputdata = InputData.from_pickle(
     PATH_INPUT_FILES,
     TOETSING_PICKLE,
     WBI_LOG_PICKLE,
-    boundary_mode=boundary_mode,
-    polderlevel_mode=polderlevel_mode,
 )
 
 # debug beperkt zich tot dp 467 en 314
@@ -112,9 +113,19 @@ if DEBUG:
     inputdata.scenarios = [i for i in inputdata.scenarios if i.dijkpaal in [467, 314]]
 
 for scenario in inputdata.scenarios:
-    dm = scenario.to_dgeoflow_model()
+    log, dm = scenario.to_dgeoflow_model(
+        # plot_file=Path(PATH_OUTPUT_FILES) / f"{scenario.name}.png",
+        k_sand=k_sand,
+        anisotropy_factor=anisotropy_factor,
+        sealevel_rise=sealevel_rise,
+        use_surface_boundary=use_surface_boundary,
+    )
 
-    dm.serialize(Path(PATH_OUTPUT_FILES) / f"{scenario.name}.flox")
+    with open(Path(PATH_OUTPUT_FILES) / f"{scenario.name}.log", "w") as f:
+        f.write("\n".join(log))
+
+    if dm is not None:
+        dm.serialize(Path(PATH_OUTPUT_FILES) / f"{scenario.name}.flox")
 
 
 # fig = Figure(figsize=(10, 6))
@@ -130,7 +141,7 @@ for scenario in inputdata.scenarios:
 #         filename_output = f"{PATH_OUTPUT_FILES}/result_{BOUNDARY_MODE_NAMES[boundary_mode]}_{POLDERLEVEL_MODE_NAMES[polderlevel_mode]}_k{k_zand:0.3f}_a{anisotropy_factor}.csv"
 #         f_output = open(filename_output, "w")
 #         f_output.write(
-#             "scenario [-],boundary_mode [-],polderlevel_mode [-],k_zand [m/day],calculation_time [s],pipe_length [m]\n"
+#             "scenario [-],boundary_mode [-],polderlevel_mode [-],k_zand [m/day],calculation_time [s],pipe_length [m]\\n"
 #         )
 #         f_log.close()
 #         f_output.close()
@@ -158,7 +169,7 @@ for scenario in inputdata.scenarios:
 #                 dm.execute()
 #                 f_output = open(filename_output, "a+")
 #                 f_output.write(
-#                     f"{scenario.name},{BOUNDARY_MODE_NAMES[boundary_mode]},{POLDERLEVEL_MODE_NAMES[polderlevel_mode]},{k_zand:0.3f},{(time.time() - start_time):.0f},{dm.output.PipeLength:.2f}\n"
+#                     f"{scenario.name},{BOUNDARY_MODE_NAMES[boundary_mode]},{POLDERLEVEL_MODE_NAMES[polderlevel_mode]},{k_zand:0.3f},{(time.time() - start_time):.0f},{dm.output.PipeLength:.2f}\\n"
 #                 )
 #                 f_output.close()
 
@@ -177,11 +188,11 @@ for scenario in inputdata.scenarios:
 #                     )
 #                 except Exception as e_plot:
 #                     f_log.write(
-#                         f"Cannot save debug plot for '{scenario.name}', got error '{e_plot}'\n"
+#                         f"Cannot save debug plot for '{scenario.name}', got error '{e_plot}'\\n"
 #                     )
 
 #                 f_log.write(
-#                     f"Cannot handle scenario '{scenario.name}', got error '{e}'\n"
+#                     f"Cannot handle scenario '{scenario.name}', got error '{e}'\\n"
 #                 )
 #                 f_log.close()
 

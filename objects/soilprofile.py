@@ -23,9 +23,20 @@ class SoilProfile(BaseModel):
 
     @property
     def aquifer(self):
-        for l in self.soillayers:
-            if l.is_aquifer == l.aquifer_number:
-                return l
+        """The aquifer is the n-th layer from the bottom where n = aquifer_number in the input
+        and a layer is an aquifer if is_aquifer > 0 in the input"""
+        n_aquifer = self.soillayers[0].aquifer_number
+        c_aquifer = 0
+        for l in self.soillayers[::-1]:
+            if l.is_aquifer > 0:
+                c_aquifer += 1
+                if c_aquifer == n_aquifer:
+                    return l
+
+        # OLD CODE - PROBABLY WRONG - SEE MAIL 26-12-2023
+        # for l in self.soillayers:
+        #     if l.is_aquifer == l.aquifer_number:
+        #         return l
         return None
 
     def get_first_acquifer_below(self, z: float):
