@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import Figure
 import matplotlib.patches as patches
-from shapely.geometry import Polygon, MultiPolygon
+from shapely.geometry import Polygon, MultiPolygon, LineString
 from shapely import is_ccw
 from geolib.models.dgeoflow import DGeoFlowModel
 from geolib.soils.soil import Soil, StorageParameters
@@ -608,6 +608,9 @@ class Scenario(BaseModel):
         ditch_top_right = self.crosssection.get_point_by_point_type(
             CrosssectionPointType.SLOOT_1A
         )
+        ditch_top_left = self.crosssection.get_point_by_point_type(
+            CrosssectionPointType.SLOOT_1B
+        )
 
         if (
             ditch_bottom_left.x >= ditch_bottom_right.x
@@ -679,6 +682,9 @@ class Scenario(BaseModel):
         crs_polygon = Polygon(points)
 
         # subtract the crosssection polygon from the other layers
+        # we also need to keep track of the point for the start of the pipe
+        pipe_start = None
+
         for spg in soil_polygons:
             newpgs = spg.polygon.intersection(crs_polygon)
 
@@ -699,6 +705,62 @@ class Scenario(BaseModel):
                 points = [Point(x=p[0], z=p[1]) for p in geom.boundary.coords][:-1]
 
                 # if we are dealing with the aquifer we need to add a point at x=ditch_bottom_left and z=top layer
+                if spg.soillayer == self.soilprofile.aquifer:
+                    # two scenarios
+                    # scenario 1: the top of the aquifer is on or above the ditch bottom
+                    if spg.soillayer.top > ditch_bottom_left.z:
+                        pipe_start = sorted(points, key=lambda p: p.x)[-1]
+                        topline = LineString(
+                            [
+                                (left_limit, spg.soillayer.top),
+                                (right_limit, spg.soillayer.top),
+                            ]
+                        )
+                        ditchline = LineString(
+                            [
+                                (ditch_top_left.x, ditch_top_left.z),
+                                (ditch_bottom_left.x, ditch_bottom_left.z),
+                            ]
+                        )
+                        try:
+                            intersections = topline.intersection(ditchline)
+                            pipe_start = Point(x=intersections.x, z=intersections.y)
+                        except Exception as e:
+                            log.append(
+                                "Error trying to find an intersection between the top of the aquifer and the left slope of the ditch, check the input!"
+                            )
+                            return log, None
+                    else:
+                        # scenario 2: the top of the aquifer is below the ditch bottom:
+                        for i in range(len(points) + 1):
+                            p1 = points[i]
+
+                            if i == len(points) - 1:
+                                p2 = points[0]
+                            else:
+                                p2 = points[i + 1]
+
+                            # we could already have the point available if it is on one of the points on the layer
+                            if (
+                                p1.x == ditch_bottom_left.x
+                                or p2.x == ditch_bottom_left.x
+                            ):
+                                break  # the point is already defined
+
+                            # if not we need to make sure we are dealing with the top of the layer
+                            # since we are going cw we should just check if the points x coords are increasing
+                            # if so we can check if our point is in between these points
+                            if (
+                                p1.x < p2.x
+                                and p1.x < ditch_bottom_left.x
+                                and ditch_bottom_left.x < p2.x
+                            ):
+                                z = p1.z + (ditch_bottom_left.x - p1.x) * (
+                                    p2.z - p1.z
+                                ) / (p2.x - p1.x)
+                                pipe_start = Point(x=ditch_bottom_left.x, z=z)
+                                points.insert(i + 1, pipe_start)
+                                break
 
                 m.add_layer(
                     points=points,
@@ -786,9 +848,7 @@ class Scenario(BaseModel):
                 ErosionDirection=ErosionDirectionEnum.RIGHT_TO_LEFT,
                 ElementSize=PIPE_MESH_SIZE,
                 Points=[
-                    PersistablePoint(
-                        X=ditch_bottom_left.x, Z=self.soilprofile.aquifer.top
-                    ),
+                    PersistablePoint(X=pipe_start.x, Z=self.soilprofile.aquifer.top),
                     PersistablePoint(X=left_limit, Z=self.soilprofile.aquifer.top),
                 ],
             )
