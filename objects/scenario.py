@@ -37,6 +37,7 @@ from settings import (
     RIGHT_SIDE_BOUNDARY_OFFSET,
     PIPE_MESH_SIZE,
     SLOOT_1A_OFFSET,
+    POLDER_BOUNDARY_WIDTH,
 )
 from helpers import get_name_from_point_type, get_soil_parameters, calc_regression
 
@@ -225,6 +226,22 @@ class Scenario(BaseModel):
             )
             log.append(f"Adding soil '{code}', k_ver={k_ver}, k_hor={k_hor}")
 
+        # De aquifer grondsoort heeft zijn eigen vastgestelde parameters
+        m.add_soil(
+            Soil(
+                name="aquifer",
+                code="aquifer",
+                storage_parameters=StorageParameters(
+                    vertical_permeability=k_sand / anisotropy_factor,
+                    horizontal_permeability=k_sand,
+                ),
+                color=Color("ff0000"),
+            )
+        )
+        log.append(
+            f"Adding soil 'aquifer', k_ver={k_sand / anisotropy_factor}, k_hor={k_sand}"
+        )
+
         # LINKER LIMIET VAN HET MODEL
         left_limit = self.x_intredepunt
 
@@ -256,7 +273,14 @@ class Scenario(BaseModel):
             soil_polygons.append(SoilPolygon(points, layer))
 
         # create the polygon of the crosssection
-        points = [(p.x, p.z) for p in self.crosssection.points] + [
+        points = [(p.x, p.z) for p in self.crosssection.points]
+
+        # add the right top point if the crosssection is shorter than the right limit
+        if points[-1][0] < right_limit:
+            points.append((right_limit, points[-1][1]))
+
+        # add the lower limits
+        points += [
             (right_limit, self.soilprofile.bottom),
             (left_limit, self.soilprofile.bottom),
         ]
@@ -287,14 +311,14 @@ class Scenario(BaseModel):
 
                 # if we are dealing with the aquifer we need to add a point at x=ditch_bottom_left and z=top layer
 
-                # TODO
                 # maak de breedte max 1m (en bij voorkeur, voeg nog wat extra punten toe om het in stapjes
                 # van een meter te verbreden)
                 if spg.soillayer == self.soilprofile.aquifer:
+                    # we need to add one or two points to define the polder boundary
                     # two scenarios
                     # scenario 1: the top of the aquifer is on or above the ditch bottom
-                    if spg.soillayer.top > ditch_bottom_left.z:
-                        pipe_start = sorted(points, key=lambda p: p.x)[-1]
+                    if spg.soillayer.top >= ditch_bottom_left.z:
+                        # find the intersection of the aquifer top with the ditch slope
                         topline = LineString(
                             [
                                 (left_limit, spg.soillayer.top),
@@ -310,46 +334,65 @@ class Scenario(BaseModel):
                         try:
                             intersections = topline.intersection(ditchline)
                             pipe_start = Point(x=intersections.x, z=intersections.y)
+
+                            # the start of the polder boundary is at the bottom of the ditch
+                            start_polder_boundary = ditch_bottom_left
+
+                            if (
+                                ditch_bottom_right.x - ditch_bottom_left.x
+                                < POLDER_BOUNDARY_WIDTH
+                            ):
+                                end_polder_boundary = ditch_bottom_right
+                            else:
+                                end_polder_boundary = Point(
+                                    x=start_polder_boundary.x + POLDER_BOUNDARY_WIDTH,
+                                    z=start_polder_boundary.z,
+                                )
                         except Exception as e:
                             log.append(
                                 "Error trying to find an intersection between the top of the aquifer and the left slope of the ditch, check the input!"
                             )
                             return log, None
                     else:
-                        # scenario 2: the top of the aquifer is below the ditch bottom:
-                        for i in range(len(points) + 1):
-                            p1 = points[i]
+                        # scenario 2: the top of the aquifer is below the ditch bottom
+                        # we need to add the left and right side of the polder boundary to
+                        # this layer
+                        start_polder_boundary = Point(
+                            x=ditch_bottom_left.x, z=spg.soillayer.top
+                        )
 
+                        end_polder_boundary = Point(
+                            x=ditch_bottom_left.x
+                            + POLDER_BOUNDARY_WIDTH,  # right side of the polder boundary
+                            z=spg.soillayer.top,
+                        )
+                        pipe_start = Point(x=ditch_bottom_left.x, z=spg.soillayer.top)
+
+                    # add the points unless they are already on the layer
+                    for p in [
+                        end_polder_boundary,
+                        start_polder_boundary,
+                        pipe_start,
+                    ]:
+                        if p in points:
+                            continue
+                        for i in range(len(points)):
+                            p1 = points[i]
                             if i == len(points) - 1:
                                 p2 = points[0]
                             else:
                                 p2 = points[i + 1]
-
-                            # we could already have the point available if it is on one of the points on the layer
-                            if (
-                                p1.x == ditch_bottom_left.x
-                                or p2.x == ditch_bottom_left.x
-                            ):
-                                break  # the point is already defined
-
-                            # if not we need to make sure we are dealing with the top of the layer
-                            # since we are going cw we should just check if the points x coords are increasing
-                            # if so we can check if our point is in between these points
-                            if (
-                                p1.x < p2.x
-                                and p1.x < ditch_bottom_left.x
-                                and ditch_bottom_left.x < p2.x
-                            ):
-                                z = p1.z + (ditch_bottom_left.x - p1.x) * (
-                                    p2.z - p1.z
-                                ) / (p2.x - p1.x)
-                                pipe_start = Point(x=ditch_bottom_left.x, z=z)
-                                points.insert(i + 1, pipe_start)
+                            if p1.x < p.x and p.x < p2.x:
+                                points.insert(i + 1, p)
                                 break
 
+                if spg.soillayer == self.soilprofile.aquifer:
+                    soil_code = "aquifer"
+                else:
+                    soil_code = spg.soillayer.short_name
                 m.add_layer(
                     points=points,
-                    soil_code=spg.soillayer.short_name,
+                    soil_code=soil_code,
                     label=spg.soillayer.soil_name,
                 )
 
@@ -372,11 +415,11 @@ class Scenario(BaseModel):
         sth_right_boundary = calc_regression(
             [0.1, dx],
             [sth_intredepunt, sth_uittredepunt],
-            self.crosssection.right - self.x_intredepunt,
+            right_limit - self.x_intredepunt,
         )[1]
 
         points_phi_hinter = [
-            Point(x=self.crosssection.right, z=z)
+            Point(x=right_limit, z=z)
             for z in self.soilprofile.get_sth_intredepunt_zs()[::-1]
         ]
 
@@ -409,7 +452,7 @@ class Scenario(BaseModel):
 
         # add the polder level boundary
         m.add_boundary_condition(
-            points=[ditch_bottom_left, ditch_bottom_right],
+            points=[start_polder_boundary, end_polder_boundary],
             head_level=phi_polder,
             label="polder",
         )
@@ -440,105 +483,3 @@ class Scenario(BaseModel):
         )
 
         return log, m
-
-    def plot(
-        self,
-        right_limit: float,
-        k_zand: float,
-        anisotropy_factor: float,
-        filename: str = "",
-        width: float = 20.0,
-        height: float = 12.0,
-        error_message: str = "",
-    ):
-        """Generate a plot of the model
-
-        If filename is "" then the figure will be returned else the plot will
-        be save to the given filename
-
-        Args:
-            right_limit (float): the rightmost x coordinate of the geometry
-            filename (str, optional): The name of the file. Defaults to "". If not set this function will return the figure
-            width (float, optional): width of the plot. Defaults to 20.0.
-            height (float, optional): height of the plot. Defaults to 12.0.
-        """
-        fig = Figure(figsize=(width, height))
-        ax = fig.add_subplot()
-
-        width = right_limit - self.crosssection.left
-
-        # grondlagen
-        for sl in self.soilprofile.soillayers:
-            # we want to show the k values
-            soilparams = get_soil_parameters(sl.short_name)
-
-            if (
-                sl.short_name in SOILS_WITH_K_ZAND
-            ):  # override these soil properties with k_zand
-                k_hor = k_zand
-                k_ver = k_zand / anisotropy_factor
-            else:
-                k_hor = soilparams["k_hor"]
-                k_ver = soilparams["k_ver"] / anisotropy_factor
-
-            # aquifer krijgt hatching
-            if sl == self.soilprofile.aquifer:
-                ax.add_patch(
-                    patches.Rectangle(
-                        (self.crosssection.left, sl.bottom),
-                        width,
-                        sl.height,
-                        facecolor=sl.color,
-                        # hatch="///",
-                        edgecolor="black",
-                        hatch="//",
-                    )
-                )
-                ax.text(
-                    self.crosssection.left,
-                    sl.bottom + 0.1,
-                    f"AQ: {sl.soil_name} (k;hor={k_hor:.3f}, k;ver={k_ver:.3f})",
-                )
-            else:
-                ax.add_patch(
-                    patches.Rectangle(
-                        (self.crosssection.left, sl.bottom),
-                        width,
-                        sl.height,
-                        color=sl.color,
-                    )
-                )
-                ax.text(
-                    self.crosssection.left,
-                    sl.bottom + 0.1,
-                    f"{sl.soil_name} (k;hor={k_hor:.3f}, k;ver={k_ver:.3f})",
-                )
-
-        # dwarsprofiel
-        ax.plot(
-            [p.x for p in self.crosssection.points],
-            [p.z for p in self.crosssection.points],
-            "k",
-        )
-
-        # karakteristieke punten
-        for point in self.crosssection.points:
-            ax.plot([point.x, point.x], [point.z, self.crosssection.top + 2.0], "k--")
-            ax.text(
-                point.x,
-                self.crosssection.top + 3.0,
-                get_name_from_point_type(point.point_type),
-                rotation=90,
-            )
-
-        if error_message != "":
-            ax.text(
-                self.crosssection.left + 2.0, self.crosssection.top + 8.0, error_message
-            )
-
-        ax.set_ylim(self.soilprofile.bottom, self.crosssection.top + 10.0)
-
-        if filename == "":  # return the figure so more stuff can be added
-            return fig, ax
-
-        fig.savefig(filename)

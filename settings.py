@@ -10,6 +10,9 @@ SEA_LEVEL_RISE_OFFSET = 0.5
 K_GETIJDEZAND = 6
 K_PLEISTOCEEN = 13
 
+# breedte van de boundary voor het polderniveau (met of zonder de 0.3d regel)
+POLDER_BOUNDARY_WIDTH = 1.0
+
 # dijkpalen waartussen getijdenzand moet worden aangenomen voor aquifer
 # let op pleistoceen heeft altijd K_PLEISTOCEEN
 GETIJDEZAND_TUSSEN_DIJKPALEN = [(292, 484), (512, 519)]

@@ -27,7 +27,8 @@ PATH_OUTPUT_FILES = (
     "C:\\Users\\brein\\Documents\\Klanten\\Scheldestromen\\ZakVanBeveland\\output"
 )
 # the pickle file with scenarion info
-TOETSING_PICKLE = "wbi_log_toetsing_relevant.pkl"
+# TOETSING_PICKLE = "wbi_log_toetsing_rvw_2024_relevant.pkl"
+TOETSING_PICKLE = "wbi_log_toetsing_rvw_2024_relevant.pkl"
 # the pickle file with soil information
 WBI_LOG_PICKLE = "wbi_log.pkl"
 
@@ -108,10 +109,13 @@ inputdata = InputData.from_pickle(
     WBI_LOG_PICKLE,
 )
 
-# debug beperkt zich tot dp 467 en 314
-if DEBUG:
-    inputdata.scenarios = [i for i in inputdata.scenarios if i.dijkpaal in [467, 314]]
+# eerste batch tussen 368-390
+inputdata.scenarios = [
+    i for i in inputdata.scenarios if i.dijkpaal >= 368 and i.dijkpaal <= 390
+]
 
+
+f_results = open(Path(PATH_OUTPUT_FILES) / "result.csv", "w")
 for scenario in inputdata.scenarios:
     log, dm = scenario.to_dgeoflow_model(
         # plot_file=Path(PATH_OUTPUT_FILES) / f"{scenario.name}.png",
@@ -124,8 +128,26 @@ for scenario in inputdata.scenarios:
     with open(Path(PATH_OUTPUT_FILES) / f"{scenario.name}.log", "w") as f:
         f.write("\n".join(log))
 
-    if dm is not None:
-        dm.serialize(Path(PATH_OUTPUT_FILES) / f"{scenario.name}.flox")
+    if dm is None:
+        f_results.write(f"No model could be created for scenario '{scenario.name}'\n")
+        continue
+
+    dm.serialize(Path(PATH_OUTPUT_FILES) / f"{scenario.name}.flox")
+    start_time = time.time()
+    dm.execute()
+    end_time = time.time()
+
+    try:
+        f_results.write(
+            f"Scenario '{scenario.name}': calculation took {(time.time() - start_time):.0f}s, pipe length = {dm.output.PipeLength}m\n"
+        )
+
+    except Exception as e:
+        f_results.write(
+            f"Scenario '{scenario.name}' has no result, got message '{e}'\n"
+        )
+
+f_results.close()
 
 
 # fig = Figure(figsize=(10, 6))
