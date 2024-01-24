@@ -307,10 +307,66 @@ class Scenario(BaseModel):
                 if geom.is_empty:
                     if is_ccw(geom):
                         geom = geom.reverse()
+
                 points = [Point(x=p[0], z=p[1]) for p in geom.boundary.coords][:-1]
+                # to facilitate the adding of points we will sort them so the first point is topleft
+                x_left = min([p.x for p in points])
+                z_left_top = max([p.z for p in [p for p in points if p.x == x_left]])
+                idx = points.index(Point(x=x_left, z=z_left_top))
+                points = points[idx:] + points[:idx]
 
-                # if we are dealing with the aquifer we need to add a point at x=ditch_bottom_left and z=top layer
+                # we will add the left and right side of the polder boundary to every layer since that makes
+                # it much easier to add the polder boundary
+                # if we didn't do this we needed to find the aquifer layer and the layer on top of
+                # that leading to complicated code, so eventhough this is not the best way it
+                # is the most efficient
+                x_polder_boundary_start = ditch_bottom_left.x
+                x_polder_boundary_end = x_polder_boundary_start + POLDER_BOUNDARY_WIDTH
 
+                new_points = [points[0]]
+                for i in range(1, len(points)):
+                    p1 = points[i - 1]
+                    p2 = points[i]
+                    if (
+                        p1.x < x_polder_boundary_start
+                        and x_polder_boundary_start < p2.x
+                    ):
+                        z = p1.z + (x_polder_boundary_start - p1.x) / (p2.x - p1.x) * (
+                            p2.z - p1.z
+                        )
+                        new_points.append(Point(x=x_polder_boundary_start, z=z))
+                    if p1.x < x_polder_boundary_end and x_polder_boundary_end < p2.x:
+                        z = p1.z + (x_polder_boundary_end - p1.x) / (p2.x - p1.x) * (
+                            p2.z - p1.z
+                        )
+                        new_points.append(Point(x=x_polder_boundary_end, z=z))
+                    if p2.x < x_polder_boundary_end and x_polder_boundary_end < p1.x:
+                        z = p1.z + (x_polder_boundary_end - p1.x) / (p2.x - p1.x) * (
+                            p2.z - p1.z
+                        )
+                        new_points.append(Point(x=x_polder_boundary_end, z=z))
+
+                    if (
+                        p2.x < x_polder_boundary_start
+                        and x_polder_boundary_start < p1.x
+                    ):
+                        z = p1.z + (x_polder_boundary_start - p1.x) / (p2.x - p1.x) * (
+                            p2.z - p1.z
+                        )
+                        new_points.append(Point(x=x_polder_boundary_start, z=z))
+                    new_points.append(p2)
+
+                # remove equal points
+                final_points = []
+                for i in range(len(new_points)):
+                    x = round(new_points[i].x, 3)
+                    z = round(new_points[i].z, 3)
+                    if not Point(x=x, z=z) in final_points:
+                        final_points.append(new_points[i])
+
+                points = final_points
+
+                # if we are dealing with the aquifer we need to add points for the polder boundary and the start pipe
                 # maak de breedte max 1m (en bij voorkeur, voeg nog wat extra punten toe om het in stapjes
                 # van een meter te verbreden)
                 if spg.soillayer == self.soilprofile.aquifer:
@@ -369,27 +425,28 @@ class Scenario(BaseModel):
                         pipe_start = Point(x=ditch_bottom_left.x, z=spg.soillayer.top)
 
                     # add the points unless they are already on the layer
-                    for p in [
-                        end_polder_boundary,
-                        start_polder_boundary,
-                        pipe_start,
-                    ]:
-                        if p in points:
-                            continue
-                        for i in range(len(points)):
-                            p1 = points[i]
-                            if i == len(points) - 1:
-                                p2 = points[0]
-                            else:
-                                p2 = points[i + 1]
-                            if p1.x < p.x and p.x < p2.x:
-                                points.insert(i + 1, p)
-                                break
+                    # for p in [
+                    #     end_polder_boundary,
+                    #     start_polder_boundary,
+                    #     pipe_start,
+                    # ]:
+                    #     if p in points:
+                    #         continue
+                    #     for i in range(len(points)):
+                    #         p1 = points[i]
+                    #         if i == len(points) - 1:
+                    #             p2 = points[0]
+                    #         else:
+                    #             p2 = points[i + 1]
+                    #         if p1.x < p.x and p.x < p2.x:
+                    #             points.insert(i + 1, p)
+                    #             break
 
                 if spg.soillayer == self.soilprofile.aquifer:
                     soil_code = "aquifer"
                 else:
                     soil_code = spg.soillayer.short_name
+
                 m.add_layer(
                     points=points,
                     soil_code=soil_code,
