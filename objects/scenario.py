@@ -43,6 +43,8 @@ from helpers import get_name_from_point_type, get_soil_parameters, calc_regressi
 
 
 class SoilPolygon:
+    """Een soil polygoon is een polygoon waaraan de eigenschappen van een grondlaag zijn gekoppeld"""
+
     def __init__(self, points: List[Tuple[float, float]], soillayer: SoilLayer):
         self.polygon = Polygon(points)
         self.soillayer = soillayer
@@ -98,6 +100,8 @@ POLDERLEVEL_MODE_NAMES = {
 
 
 class Scenario(BaseModel):
+    """Een scenario bevat alle informatie om een berekening te maken"""
+
     name: str
     crosssection: Crosssection
     soilprofile: SoilProfile
@@ -121,6 +125,16 @@ class Scenario(BaseModel):
         row: pd.Series,
         soilprofile: SoilProfile,
     ) -> "Scenario":
+        """Genereer een scenario op basis van invoer uit een regel in een dataframe
+
+        Args:
+            name (_type_): de naam van het scenario
+            row (pd.Series): de rij uit het dataframe
+            soilprofile (SoilProfile): het bijbehorende grondprofiel
+
+        Returns:
+            Scenario: het scenario met alle informatie
+        """
         # NOTE because of the black formatting error we need to use PROFIEL_IDS[0]
         pointtypes = [DICT_POINT_IDS[id] for id in PROFIEL_IDS[0]]
         xpoints = [row[f"x{id.lower()}"] for id in PROFIEL_IDS[0]]
@@ -165,6 +179,11 @@ class Scenario(BaseModel):
 
     @property
     def dijkpaal(self) -> int:
+        """Het dijkpaal nummer
+
+        Returns:
+            int: dijkpaal nummer
+        """
         return int(self.name[1:].split("_")[0]) / 100
 
     def to_dgeoflow_model(
@@ -174,6 +193,17 @@ class Scenario(BaseModel):
         sealevel_rise: float = 0.0,
         use_surface_boundary: bool = True,
     ) -> Union[List[str], DGeoFlowModel]:
+        """Generaar een DGeoFlow model uit dit scenario
+
+        Args:
+            k_sand (float): de doorlatendheid van het zand
+            anisotropy_factor (float): de anisotropiefactor
+            sealevel_rise (float, optional): de verwachte zeespiegelstijging. Defaults to 0.0.
+            use_surface_boundary (bool, optional): wel of niet meenemen van de boundary tussen de sloot en de rechterzijde van de geometrie. Defaults to True.
+
+        Returns:
+            Union[List[str], DGeoFlowModel]: De uitvoer bestaat uit log regels (voor debugging) en het model
+        """
         log = []
 
         # INPUT CHECK
@@ -423,24 +453,6 @@ class Scenario(BaseModel):
                             z=spg.soillayer.top,
                         )
                         pipe_start = Point(x=ditch_bottom_left.x, z=spg.soillayer.top)
-
-                    # add the points unless they are already on the layer
-                    # for p in [
-                    #     end_polder_boundary,
-                    #     start_polder_boundary,
-                    #     pipe_start,
-                    # ]:
-                    #     if p in points:
-                    #         continue
-                    #     for i in range(len(points)):
-                    #         p1 = points[i]
-                    #         if i == len(points) - 1:
-                    #             p2 = points[0]
-                    #         else:
-                    #             p2 = points[i + 1]
-                    #         if p1.x < p.x and p.x < p2.x:
-                    #             points.insert(i + 1, p)
-                    #             break
 
                 if spg.soillayer == self.soilprofile.aquifer:
                     soil_code = "aquifer"

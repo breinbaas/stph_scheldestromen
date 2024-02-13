@@ -1,5 +1,19 @@
 from objects.crosssection import CrosssectionPointType
 
+# the path to the pickle files
+PATH_INPUT_FILES = (
+    "C:\\Users\\brein\\Documents\\Klanten\\Scheldestromen\\ZakVanBeveland\\input"
+)
+# the path for temporary output files
+PATH_OUTPUT_FILES = (
+    "C:\\Users\\brein\\Documents\\Klanten\\Scheldestromen\\ZakVanBeveland\\output"
+)
+# the pickle file with scenarion info
+# TOETSING_PICKLE = "wbi_log_toetsing_rvw_2024_relevant.pkl"
+TOETSING_PICKLE = "wbi_log_toetsing_rvw_2024_relevant.pkl"
+# the pickle file with soil information
+WBI_LOG_PICKLE = "wbi_log.pkl"
+
 # als debug == True dan gebruiken we enkel dp 467 en 314 als test
 DEBUG = True
 

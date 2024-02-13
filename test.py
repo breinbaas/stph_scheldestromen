@@ -1,3 +1,5 @@
+# TESTCODE OM EEN DGEOFLOW MODEL OP TE ZETTEN
+
 from geolib.models.dgeoflow import DGeoFlowModel
 from geolib.models.dgeoflow.internal import CalculationTypeEnum
 from geolib.soils import Soil

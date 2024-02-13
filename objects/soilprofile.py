@@ -5,18 +5,31 @@ from objects.soillayer import SoilLayer
 
 
 class SoilProfile(BaseModel):
+    """Een grondprofiel bestaat uit een lijst met lagen en bevat functies
+    en eigenschappen die nuttig zijn voor de berekeningen"""
+
     id: int
     soillayers: List[SoilLayer] = []
     aquifer_number: int = -1
 
     @property
-    def top(self):
+    def top(self) -> float:
+        """De bovenzijde van het grondprofiel
+
+        Returns:
+            float: bovenzijde grondprofiel
+        """
         if len(self.soillayers) == 0:
             raise ValueError("Trying to get top of a soilprofile with no soillayers")
         return self.soillayers[0].top
 
     @property
-    def bottom(self):
+    def bottom(self) -> float:
+        """De onderzijde van het grondprofiel
+
+        Returns:
+             float: onderzijde grondprofiel
+        """
         if len(self.soillayers) == 0:
             raise ValueError("Trying to get bottom of a soilprofile with no soillayers")
 
@@ -32,6 +45,14 @@ class SoilProfile(BaseModel):
         return None
 
     def get_first_acquifer_below(self, z: float):
+        """Geeft de eerste aquifer onder de gegeven z coordinaar terug (of None als er geen is)
+
+        Args:
+            z (float): z coordinaat
+
+        Returns:
+            Union[None, SoilLayer]: De grondlaag of None als er geen aquifer onder de z coordinaat te vinden is
+        """
         for soillayer in self.soillayers:
             if soillayer.top < z and soillayer.soil_name.find("_Aq") > -1:
                 return soillayer

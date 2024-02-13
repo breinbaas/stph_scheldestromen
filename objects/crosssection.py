@@ -4,6 +4,8 @@ from enum import IntEnum
 
 
 class CrosssectionPointType(IntEnum):
+    """Class die het type van een karakteristiek punt op een dwarsprofiel aangeeft"""
+
     NONE = -1
     MV_BINNEN = 0
     SLOOT_1A = 1  # linksboven # INSTEEK (bovenkant sloot)
@@ -25,45 +27,91 @@ class CrosssectionPointType(IntEnum):
 
 
 class CrosssectionPoint(BaseModel):
+    """Punt op het dwarsprofiel"""
+
     x: float
     z: float
     point_type: CrosssectionPointType
 
 
 class Crosssection(BaseModel):
+    """Deze class bevat alle benodigde dwarsprofiel informatie inclusief
+    functies en eigenschappen om informatie uit het profiel op te halen
+    """
+
     points: List[CrosssectionPoint] = []
 
     @classmethod
-    def from_points(cls, points: List[CrosssectionPoint]):
+    def from_points(cls, points: List[CrosssectionPoint]) -> "Crosssection":
+        """Genereer een dwarsprofiel op basis van een lijst met punten
+
+        Args:
+            points (List[CrosssectionPoint]): De punten die het profiel vormen
+
+        Returns:
+            Crosssection: Geeft een dwarsprofiel class terug
+        """
         return Crosssection(points=points)
 
     @property
-    def left(self):
+    def left(self) -> CrosssectionPoint:
+        """Het meest linkse punt op het profiel
+
+        Returns:
+            CrosssectionPoint: het linker punt op het profiel
+        """
         return min([p.x for p in self.points])
 
     @property
-    def right(self):
+    def right(self) -> CrosssectionPoint:
+        """Het meest rechtse punt op het profiel
+
+        Returns:
+            CrosssectionPoint: het rechter punt op het profiel
+        """
         return max([p.x for p in self.points])
 
     @property
-    def width(self):
+    def width(self) -> float:
+        """De breedte van het profiel
+
+        Returns:
+            float: breedte van het profiel
+        """
         return self.right - self.left
 
     @property
-    def top(self):
+    def top(self) -> float:
+        """Het hoogste punt op het profiel
+
+        Returns:
+            float: hoogste punt op het profiel
+        """
         return max([p.z for p in self.points])
 
     @property
-    def bottom(self):
+    def bottom(self) -> float:
+        """Het laagste punt op het profiel
+
+        Returns:
+            float: het laagste punt op het profiel
+        """
+
         return min([p.z for p in self.points])
 
     def mirror(self):
+        """Spiegel het profiel"""
         self.points = [
             CrosssectionPoint(x=-1 * p.x, z=p.z, point_type=p.point_type)
             for p in self.points
         ][::-1]
 
     def limit_left(self, left: float) -> None:
+        """Breek het profiel aan de linkerzijde af op het gegeven punt
+
+        Args:
+            left (float): het linkerpunt vanaf waar het profiel afgebroken moet worden
+        """
         new_points = []
         for i in range(1, len(self.points)):
             p1 = self.points[i - 1]
@@ -83,13 +131,16 @@ class Crosssection(BaseModel):
                     new_points.append(self.points[i - 1])
                 new_points.append(self.points[i])
         self.points = new_points
-        self.points[
-            0
-        ].point_type = (
+        self.points[0].point_type = (
             CrosssectionPointType.MV_BUITEN
         )  # just to be sure if a point is exaclty on x_left
 
     def limit_right(self, right: float) -> None:
+        """Breek het profiel aan de rechterzijde af op het gegeven punt
+
+        Args:
+            right (float): het rechterpunt vanaf waar het profiel afgebroken moet worden
+        """
         new_points = []
         for i in range(1, len(self.points)):
             p1 = self.points[i - 1]
@@ -108,16 +159,14 @@ class Crosssection(BaseModel):
                     new_points.append(self.points[i - 1])
                 new_points.append(self.points[i])
         self.points = new_points
-        self.points[
-            0
-        ].point_type = (
+        self.points[0].point_type = (
             CrosssectionPointType.MV_BINNEN
         )  # just to be sure if a point is exaclty on x_right
 
     def get_point_by_point_type(
         self, point_type: CrosssectionPointType
     ) -> Optional[CrosssectionPoint]:
-        """Get the coint on the crosssections that represents the given point type
+        """Get the point on the crosssections that represents the given point type
 
         Args:
             point_type (CrosssectionPointType): The point type to look for
