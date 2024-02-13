@@ -301,6 +301,9 @@ class Scenario(BaseModel):
                 (left_limit, layer.bottom),
             )
             soil_polygons.append(SoilPolygon(points, layer))
+            log.append(
+                f"Laag toegevoegd van {layer.top} tot {layer.bottom} met grondsoort {layer.soil_name}"
+            )
 
         # create the polygon of the crosssection
         points = [(p.x, p.z) for p in self.crosssection.points]
@@ -477,6 +480,7 @@ class Scenario(BaseModel):
             head_level=sth_intredepunt,
             label="phi_ws",
         )
+        log.append(f"Stijghoogte intredepunt ligt op {sth_intredepunt:.2f}")
 
         # STIJGHOOGTE RECHTER RAND GEOMETRIE
         sth_uittredepunt = self.sth_uittredepunt
@@ -497,6 +501,9 @@ class Scenario(BaseModel):
             head_level=sth_right_boundary,
             label="phi_hinter",
         )
+        log.append(
+            f"Stijghoogte rechterrand geometrie ligt op {sth_right_boundary:.2f}"
+        )
 
         # STIJGHOOGTE SLOOTBODEM
         # check if we need to use the 0.3d rule
@@ -516,7 +523,7 @@ class Scenario(BaseModel):
         else:
             phi_polder = self.gehanteerd_polderpeil
             log.append(
-                f"WARNING Geen 0.3d regel toegepast, head level gelijk gesteld aan gehanteerd polderpeil, dit is nog niet correct!"
+                f"WARNING Geen 0.3d regel toegepast, head level gelijk gesteld aan gehanteerd polderpeil"
             )
 
         # add the polder level boundary
@@ -550,5 +557,13 @@ class Scenario(BaseModel):
                 ],
             )
         )
+
+        aq = self.soilprofile.aquifer
+        if aq is None:
+            log.append("Geen aquifer gevonden in de invoergegevens!")
+        else:
+            log.append(
+                f"Aquifer loopt van {aq.top:.2f} tot {aq.bottom:.2f} met grondsoort {aq.soil_name} "
+            )
 
         return log, m

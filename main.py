@@ -10,6 +10,10 @@ from objects.soilprofile import SoilProfile
 from objects.scenario import Scenario
 from settings import *
 
+# DRY_RUN can be used to quickly generate the calculations for debugging purposes
+# set to False to automatically calculate the generated calculations
+DRY_RUN = False
+
 
 class InputData(BaseModel):
     scenarios: List[Scenario] = []
@@ -105,18 +109,20 @@ for scenario in inputdata.scenarios:
         continue
 
     dm.serialize(Path(PATH_OUTPUT_FILES) / f"{scenario.name}.flox")
-    start_time = time.time()
-    dm.execute()
-    end_time = time.time()
 
-    try:
-        f_results.write(
-            f"Scenario '{scenario.name}': calculation took {(time.time() - start_time):.0f}s, pipe length = {dm.output.PipeLength}m\n"
-        )
+    if not DRY_RUN:
+        start_time = time.time()
+        dm.execute()
+        end_time = time.time()
 
-    except Exception as e:
-        f_results.write(
-            f"Scenario '{scenario.name}' has no result, got message '{e}'\n"
-        )
+        try:
+            f_results.write(
+                f"Scenario '{scenario.name}': calculation took {(time.time() - start_time):.0f}s, pipe length = {dm.output.PipeLength}m\n"
+            )
+
+        except Exception as e:
+            f_results.write(
+                f"Scenario '{scenario.name}' has no result, got message '{e}'\n"
+            )
 
 f_results.close()
