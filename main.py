@@ -110,45 +110,60 @@ inputdata = InputData.from_pickle(
 )
 
 # eerste batch tussen 368-390
-inputdata.scenarios = [
-    i for i in inputdata.scenarios if i.dijkpaal >= 368 and i.dijkpaal <= 390
-]
+# inputdata.scenarios = [
+#     i for i in inputdata.scenarios if i.dijkpaal >= 368 and i.dijkpaal <= 390
+# ]
 
 
-f_results = open(Path(PATH_OUTPUT_FILES) / "result.csv", "w")
+# f_results = open(Path(PATH_OUTPUT_FILES) / "result.csv", "w")
+f_afdeklaag = open(Path(PATH_OUTPUT_FILES) / "afdeklaag.csv", "w")
+f_afdeklaag.write(
+    "scenario,slootbodem [m tov NAP],top aquifer [m tov NAP],dikte afdekkende laag [m]\n"
+)
 for scenario in inputdata.scenarios:
-    log, dm = scenario.to_dgeoflow_model(
-        # plot_file=Path(PATH_OUTPUT_FILES) / f"{scenario.name}.png",
-        k_sand=k_sand,
-        anisotropy_factor=anisotropy_factor,
-        sealevel_rise=sealevel_rise,
-        use_surface_boundary=use_surface_boundary,
+    ditch_bottom_left = scenario.crosssection.get_point_by_point_type(
+        CrosssectionPointType.SLOOT_1D
     )
-
-    with open(Path(PATH_OUTPUT_FILES) / f"{scenario.name}.log", "w") as f:
-        f.write("\n".join(log))
-
-    if dm is None:
-        f_results.write(f"No model could be created for scenario '{scenario.name}'\n")
-        continue
-
-    dm.serialize(Path(PATH_OUTPUT_FILES) / f"{scenario.name}.flox")
-    start_time = time.time()
-    dm.execute()
-    end_time = time.time()
-
-    try:
-        f_results.write(
-            f"Scenario '{scenario.name}': calculation took {(time.time() - start_time):.0f}s, pipe length = {dm.output.PipeLength}m\n"
+    if ditch_bottom_left is None:
+        f_afdeklaag.write(f"{scenario.name},-1e9,-1e9,-1e9\n")
+    else:
+        d_03 = max(ditch_bottom_left.z - scenario.soilprofile.aquifer.top, 0.0)
+        f_afdeklaag.write(
+            f"{scenario.name},{ditch_bottom_left.z:.2f},{scenario.soilprofile.aquifer.top:.2f},{d_03:.2f}\n"
         )
 
-    except Exception as e:
-        f_results.write(
-            f"Scenario '{scenario.name}' has no result, got message '{e}'\n"
-        )
+    # log, dm = scenario.to_dgeoflow_model(
+    #     # plot_file=Path(PATH_OUTPUT_FILES) / f"{scenario.name}.png",
+    #     k_sand=k_sand,
+    #     anisotropy_factor=anisotropy_factor,
+    #     sealevel_rise=sealevel_rise,
+    #     use_surface_boundary=use_surface_boundary,
+    # )
 
-f_results.close()
+    # with open(Path(PATH_OUTPUT_FILES) / f"{scenario.name}.log", "w") as f:
+    #     f.write("\n".join(log))
 
+    # if dm is None:
+    #     f_results.write(f"No model could be created for scenario '{scenario.name}'\n")
+    #     continue
+
+    # dm.serialize(Path(PATH_OUTPUT_FILES) / f"{scenario.name}.flox")
+    # start_time = time.time()
+    # dm.execute()
+    # end_time = time.time()
+
+    # try:
+    #     f_results.write(
+    #         f"Scenario '{scenario.name}': calculation took {(time.time() - start_time):.0f}s, pipe length = {dm.output.PipeLength}m\n"
+    #     )
+
+    # except Exception as e:
+    #     f_results.write(
+    #         f"Scenario '{scenario.name}' has no result, got message '{e}'\n"
+    #     )
+
+# f_results.close()
+f_afdeklaag.close()
 
 # fig = Figure(figsize=(10, 6))
 # ax = fig.add_subplot()
