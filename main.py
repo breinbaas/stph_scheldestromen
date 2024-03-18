@@ -12,7 +12,7 @@ from settings import *
 
 # DRY_RUN can be used to quickly generate the calculations for debugging purposes
 # set to False to automatically calculate the generated calculations
-DRY_RUN = False
+DRY_RUN = True
 
 
 class InputData(BaseModel):

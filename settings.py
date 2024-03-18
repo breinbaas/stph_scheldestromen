@@ -1,13 +1,9 @@
 from objects.crosssection import CrosssectionPointType
 
 # the path to the pickle files
-PATH_INPUT_FILES = (
-    "C:\\Users\\brein\\Documents\\Klanten\\Scheldestromen\\ZakVanBeveland\\input"
-)
+PATH_INPUT_FILES = r"Y:\Documents\Klanten\OneDrive\Scheldestromen\ZakVanBeveland\Input"
 # the path for temporary output files
-PATH_OUTPUT_FILES = (
-    "C:\\Users\\brein\\Documents\\Klanten\\Scheldestromen\\ZakVanBeveland\\output"
-)
+PATH_OUTPUT_FILES = r"Y:\Documents\Klanten\Output\Scheldestromen\ZakVanBeveland"
 # the pickle file with scenarion info
 # TOETSING_PICKLE = "wbi_log_toetsing_rvw_2024_relevant.pkl"
 TOETSING_PICKLE = "wbi_log_toetsing_rvw_2024_relevant.pkl"

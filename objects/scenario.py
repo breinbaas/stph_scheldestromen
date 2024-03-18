@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import Figure
 import matplotlib.patches as patches
-from shapely.geometry import Polygon, MultiPolygon, LineString
+from shapely.geometry import Polygon, MultiPolygon, LineString, GeometryCollection
 from shapely import is_ccw
 from geolib.models.dgeoflow import DGeoFlowModel
 from geolib.soils.soil import Soil, StorageParameters
@@ -290,10 +290,36 @@ class Scenario(BaseModel):
         self.crosssection.limit_left(left_limit)
         self.crosssection.limit_right(right_limit)
 
+        # OUDE CODE DIE DE AQUIFER AANPAST AAN DE SLOOTBODEM (IPV ANDERSOM)
+        # BEWAARD VOOR HET GEVAL DAT BETER WERKT
+        # check of de grondlagen aangepast moeten worden indien de onderzijde van de sloot lager ligt dan de
+        # bovenzijde van de aquifer, in dit geval wordt de slootbodem opgetrokken naar het niveau van
+        # de aquifer
+        # soillayers = []
+        # for i, layer in enumerate(self.soilprofile.soillayers):
+        #     if layer == self.soilprofile.aquifer:
+        #         if layer.top > ditch_bottom_left.z:
+        #             log.append(
+        #                 f"De slootbodem ({ditch_bottom_left.z:.2f}) ligt lager dan de bovenzijde van de aquifer ({layer.top:.2f}), de slootbodem wordt volgens afspraak omhoog getrokken tot de bovenzijde van de aquifer."
+        #             )
+        #             layer.top = ditch_bottom_left.z
+        #             if i > 0:
+        #                 soillayers[i - 1].bottom = layer.top
+        #     soillayers.append(layer)
+
         # CREEER DE GRONDLAGEN
         # add all soilayers
         soil_polygons = []
         for layer in self.soilprofile.soillayers:
+            if (
+                layer == self.soilprofile.aquifer
+            ):  # check of de bovenzijde van de aquifer lager ligt dan de slootbodem
+                if layer.top > ditch_bottom_left.z:
+                    log.append(
+                        f"De slootbodem ({ditch_bottom_left.z:.2f}) ligt lager dan de bovenzijde van de aquifer ({layer.top:.2f}), de slootbodem wordt volgens afspraak omhoog getrokken tot de bovenzijde van de aquifer."
+                    )
+                    ditch_bottom_left.z = layer.top
+                    ditch_bottom_right.z = layer.top
             points = (
                 (left_limit, layer.top),
                 (right_limit, layer.top),
@@ -326,15 +352,17 @@ class Scenario(BaseModel):
         for spg in soil_polygons:
             newpgs = spg.polygon.intersection(crs_polygon)
 
-            if not type(newpgs) in [Polygon, MultiPolygon]:
+            if not type(newpgs) in [Polygon, MultiPolygon, GeometryCollection]:
                 raise ValueError(
                     f"Unexpected polygon shape '{type(newpgs)}' during the creation of the geometry."
                 )
 
             if type(newpgs) == Polygon:
                 geoms = [newpgs]
-            else:
+            elif type(newpgs) == MultiPolygon:
                 geoms = newpgs.geoms
+            elif type(newpgs) == GeometryCollection:
+                geoms = [g for g in newpgs.geoms if type(g) == Polygon]
 
             for geom in geoms:
                 if geom.is_empty:
